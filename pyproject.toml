@@ -1,0 +1,19 @@
+[project]
+name = "study-rag"
+version = "0.1.0"
+description = "LangChain + LangGraph + Gemini API によるRAGサンプル実装"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "langchain>=0.3",
+    "langchain-google-genai>=2.0",
+    "langchain-community>=0.3",
+    "langchain-chroma>=0.1",
+    "langgraph>=0.2",
+    "chromadb>=0.5",
+    "pypdf>=4.0",
+    "mlflow>=2.15",
+    "streamlit>=1.38",
+    "python-dotenv>=1.0",
+    "ragas>=0.1",
+]
