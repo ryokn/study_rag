@@ -3,7 +3,7 @@
 ## 概要
 
 ローカルPDFファイルを対象としたRAG（Retrieval-Augmented Generation）サンプル実装。  
-LangChain / LangGraph / Gemini API を組み合わせた検索・回答生成パイプラインを学習目的で構築する。  
+LangChain / LangGraph / Gemini API または Ollama を組み合わせた検索・回答生成パイプラインを学習目的で構築する。  
 MLflowで実験を継続的に評価・比較できる仕組みを持つ。
 
 ---
@@ -14,7 +14,8 @@ MLflowで実験を継続的に評価・比較できる仕組みを持つ。
 |---|---|
 | RAGフレームワーク | LangChain |
 | エージェント/フロー制御 | LangGraph |
-| LLM / Embedding | Gemini API（`gemini-2.5-flash` / `gemini-embedding-001`） |
+| LLM | Gemini API（`gemini-2.5-flash`）または Ollama（`gemma4`等） |
+| Embedding | Gemini API（`gemini-embedding-001`） |
 | ベクターDB | ChromaDB（ローカル永続化） |
 | 実験管理 | MLflow |
 | Web UI | Streamlit |
@@ -69,7 +70,6 @@ data/pdfs/*.pdf
 チャンクリスト
     │
     ▼ GoogleGenerativeAIEmbeddings（gemini-embedding-001）
-    │  ※ 無料枠対応: 80件ずつ・65秒待機
     │
     ▼ Chroma.from_documents / add_documents
 ChromaDB（./chroma_db/ に永続保存）
@@ -88,10 +88,10 @@ LangGraph が以下のノードグラフを制御する。
     │  ChromaDB 類似検索（TOP_K=5件）
     │
     ▼ 【generate ノード】（rag/chain.py）
-    │  コンテキスト＋質問 → Gemini LLM（gemini-2.5-flash）→ 回答生成
+    │  コンテキスト＋質問 → LLM（Gemini or Ollama）→ 回答生成
     │
     ▼ 【judge ノード】（rag/graph.py）
-    │  「回答は十分か？」を Gemini に判定させる
+    │  「回答は十分か？」をLLMに判定させる
     │  retry_count をインクリメント
     │
     ▼ 【should_retry 分岐】
@@ -114,9 +114,9 @@ data/eval_questions.json（質問・正解リスト）
     │  └─ answer_relevancy   : 回答が質問に関連しているか
     │
     ▼ MLflow（mlflow_tracking/experiments.py）
-パラメータ＋スコアを ./mlruns/ に記録
+パラメータ＋スコアを mlruns.db に記録
     │
-    ▼ mlflow ui（http://localhost:5000）
+    ▼ mlflow ui --backend-store-uri sqlite:///mlruns.db（http://localhost:5000）
 実験結果の比較・可視化
 ```
 
@@ -137,7 +137,8 @@ study_rag/
 │   ├── retriever.py         # ChromaDBからの検索
 │   ├── chain.py             # LangChainのRAGチェーン
 │   ├── graph.py             # LangGraphのフロー定義
-│   └── evaluator.py         # 回答品質評価
+│   ├── evaluator.py         # 回答品質評価
+│   └── llm.py               # LLMファクトリ（Gemini / Ollama 切り替え）
 │
 ├── mlflow_tracking/
 │   └── experiments.py       # MLflow実験ログユーティリティ
@@ -158,8 +159,9 @@ study_rag/
 | `CHUNK_SIZE` | 500 | チャンク分割サイズ（文字数） |
 | `CHUNK_OVERLAP` | 50 | チャンク間のオーバーラップ |
 | `TOP_K` | 5 | 検索で取得するチャンク数 |
-| `LLM_MODEL` | `gemini-2.5-flash` | 使用するGeminiモデル |
-| `EMBEDDING_MODEL` | `gemini-embedding-001` | 埋め込みモデル |
+| `LLM_PROVIDER` | `gemini` | LLMプロバイダー（`gemini` または `ollama`） |
+| `LLM_MODEL` | `gemini-2.5-flash` | 使用するモデル名（Ollama例: `gemma4:2b`） |
+| `EMBEDDING_MODEL` | `gemini-embedding-001` | 埋め込みモデル（Gemini専用） |
 
 これらの値をMLflowで変えながら実験比較する。
 
@@ -187,9 +189,11 @@ study_rag/
 ## 環境変数
 
 ```env
-GOOGLE_API_KEY=your_gemini_api_key
-MLFLOW_TRACKING_URI=./mlruns
+GOOGLE_API_KEY=your_gemini_api_key   # Gemini使用時のみ必須
+MLFLOW_TRACKING_URI=sqlite:///mlruns.db
 CHROMA_PERSIST_DIR=./chroma_db
+LLM_PROVIDER=gemini                  # gemini または ollama
+LLM_MODEL=gemini-2.5-flash           # Ollama使用時は例: gemma4:2b
 ```
 
 ---

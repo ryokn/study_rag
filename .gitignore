@@ -18,3 +18,5 @@ data/eval_questions.json
 chroma_db/
 mlruns/
 mlruns.db
+mlflow.db
+.claude/
