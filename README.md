@@ -1,6 +1,6 @@
 # study-rag
 
-LangChain / LangGraph / Gemini API を使ったRAGサンプル実装。  
+LangChain / LangGraph / Gemini API・Ollama を使ったRAGサンプル実装。  
 ローカルPDFを対象に検索・回答生成・品質評価までを学習目的で構築したプロジェクト。
 
 ## 技術スタック
@@ -9,7 +9,7 @@ LangChain / LangGraph / Gemini API を使ったRAGサンプル実装。
 |---|---|
 | RAGフレームワーク | LangChain |
 | エージェント/フロー制御 | LangGraph |
-| LLM / Embedding | Gemini API |
+| LLM / Embedding | Gemini API または Ollama（ローカルLLM） |
 | ベクターDB | ChromaDB（ローカル永続化） |
 | 実験管理 | MLflow |
 | Web UI | Streamlit |
@@ -29,10 +29,30 @@ uv sync
 cp .env.example .env
 ```
 
-`.env` を開いて `GOOGLE_API_KEY` に [Gemini API キー](https://aistudio.google.com/app/apikey) を設定してください。
+`.env` を開いて必要な設定を行います。
 
+**Gemini API を使う場合：**
 ```env
 GOOGLE_API_KEY=your_gemini_api_key
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-flash
+```
+
+**Ollama（ローカルLLM）を使う場合：**
+```bash
+# Ollamaのインストール
+brew install ollama
+
+# モデルの取得（例: Gemma 4 2B）
+ollama pull gemma4:2b
+
+# サーバー起動（別ターミナルで）
+ollama serve
+```
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=gemma4:2b
 ```
 
 **3. PDFファイルを配置**
@@ -208,8 +228,9 @@ study_rag/
 | `CHUNK_SIZE` | 500 | チャンク分割サイズ（文字数） |
 | `CHUNK_OVERLAP` | 50 | チャンク間のオーバーラップ |
 | `TOP_K` | 5 | 検索で取得するチャンク数 |
-| `LLM_MODEL` | gemini-2.5-flash | 使用するGeminiモデル |
-| `EMBEDDING_MODEL` | gemini-embedding-001 | 埋め込みモデル |
+| `LLM_PROVIDER` | gemini | LLMプロバイダー（`gemini` または `ollama`） |
+| `LLM_MODEL` | gemini-2.5-flash | 使用するモデル名（Ollama例: `gemma4:2b`） |
+| `EMBEDDING_MODEL` | gemini-embedding-001 | 埋め込みモデル（Gemini専用） |
 
 ## 実装フェーズ
 
