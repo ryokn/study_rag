@@ -19,7 +19,7 @@ def log_experiment(
         metrics: faithfulness・answer_relevancy等のスコア
         run_name: 実験の識別名
     """
-    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "./mlruns"))
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlruns.db"))
     mlflow.set_experiment(EXPERIMENT_NAME)
 
     with mlflow.start_run(run_name=run_name):

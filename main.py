@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import time
 
 from dotenv import load_dotenv
 
@@ -55,6 +56,9 @@ def cmd_eval(args: argparse.Namespace) -> None:
     from rag.evaluator import evaluate_rag
     from mlflow_tracking.experiments import log_experiment
 
+    # リクエスト間隔（LLMのリトライはrag/llm.pyのwith_retry()で処理）
+    llm_request_interval = int(os.getenv("LLM_REQUEST_INTERVAL", "13"))
+
     questions, ground_truths = _load_eval_dataset(args)
     print(f"評価データ: {len(questions)} 件")
 
@@ -64,10 +68,13 @@ def cmd_eval(args: argparse.Namespace) -> None:
     answers: list[str] = []
     contexts: list[list[str]] = []
 
-    for q in questions:
+    for i, q in enumerate(questions):
+        print(f"  質問 {i + 1}/{len(questions)}: {q[:30]}...")
         docs = retrieve(vectorstore, q)
         answers.append(chain.invoke(q))
         contexts.append([doc.page_content for doc in docs])
+        if i < len(questions) - 1:
+            time.sleep(llm_request_interval)
 
     metrics = evaluate_rag(questions, answers, contexts, ground_truths)
     print("評価結果:", metrics)
@@ -76,7 +83,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
         "chunk_size": os.getenv("CHUNK_SIZE", "500"),
         "chunk_overlap": os.getenv("CHUNK_OVERLAP", "50"),
         "top_k": os.getenv("TOP_K", "5"),
-        "llm_model": os.getenv("LLM_MODEL", "gemini-2.5-flash"),
+        "llm_model": os.getenv("LLM_MODEL", "gemini-2.0-flash-lite"),
         "eval_size": str(len(questions)),
     }
     log_experiment(params=params, metrics=metrics, run_name=args.run_name)

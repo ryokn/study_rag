@@ -1,17 +1,15 @@
 """LangGraphによるRAGフロー制御（検索→判定→再検索）"""
 
-import os
 from typing import TypedDict
 
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, StateGraph
 
+from rag.llm import build_llm
 from rag.retriever import retrieve
 
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
 MAX_RETRIES = 2
 
 
@@ -46,7 +44,7 @@ def _build_judge_prompt() -> ChatPromptTemplate:
 
 
 def build_graph(vectorstore: Chroma) -> StateGraph:
-    llm = ChatGoogleGenerativeAI(model=LLM_MODEL, temperature=0)
+    llm = build_llm()
     answer_chain = _build_answer_prompt() | llm | StrOutputParser()
     judge_chain = _build_judge_prompt() | llm | StrOutputParser()
 

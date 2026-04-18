@@ -17,3 +17,4 @@ data/pdfs/
 data/eval_questions.json
 chroma_db/
 mlruns/
+mlruns.db

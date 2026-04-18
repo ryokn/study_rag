@@ -131,7 +131,7 @@ TOP_K=10 uv run python main.py eval --questions-file data/eval_questions.json --
 ### MLflow UIで実験比較
 
 ```bash
-uv run mlflow ui
+uv run mlflow ui --backend-store-uri sqlite:///mlruns.db
 ```
 
 `http://localhost:5000` でチャンクサイズやtop-kを変えた実験結果を比較できます。
@@ -144,7 +144,7 @@ uv run mlflow ui
 data/pdfs/*.pdf
     ↓ PyPDFLoader でテキスト抽出
     ↓ RecursiveCharacterTextSplitter でチャンク分割
-    ↓ Gemini Embedding でベクトル化（80件ずつ・65秒待機）
+    ↓ Gemini Embedding でベクトル化
     ↓
 ChromaDB（./chroma_db/）に永続保存
 ```
@@ -188,7 +188,8 @@ study_rag/
 │   ├── retriever.py         # ChromaDBからの検索
 │   ├── chain.py             # LangChain RAGチェーン
 │   ├── graph.py             # LangGraph フロー（検索→生成→品質判定→再試行）
-│   └── evaluator.py         # RAGAS品質評価
+│   ├── evaluator.py         # RAGAS品質評価
+│   └── llm.py               # Gemini LLMファクトリ（リトライ付き）
 │
 ├── mlflow_tracking/
 │   └── experiments.py       # MLflow実験ログ
