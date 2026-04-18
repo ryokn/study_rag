@@ -4,7 +4,7 @@ import math
 import os
 
 from langchain_chroma import Chroma
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
@@ -55,10 +55,23 @@ def build_agent(vectorstore: Chroma):
     return create_react_agent(llm, tools)
 
 
+def _print_tool_usage(messages: list) -> None:
+    """エージェントが使用したツールをデバッグ出力する"""
+    for msg in messages:
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            for tc in msg.tool_calls:
+                args_str = ", ".join(f"{k}={v!r}" for k, v in tc["args"].items())
+                print(f"  [ツール呼び出し] {tc['name']}({args_str})")
+        elif isinstance(msg, ToolMessage):
+            preview = str(msg.content)[:80].replace("\n", " ")
+            print(f"  [ツール結果] {preview}...")
+
+
 def run_agent(
     vectorstore: Chroma,
     question: str,
     history: list[tuple[str, str]] | None = None,
+    debug: bool = False,
 ) -> str:
     """エージェントを実行して回答を返す"""
     agent = build_agent(vectorstore)
@@ -69,6 +82,10 @@ def run_agent(
     messages.append(HumanMessage(content=question))
 
     result = agent.invoke({"messages": messages})
+
+    if debug:
+        _print_tool_usage(result["messages"])
+
     content = result["messages"][-1].content
     # Anthropicモデルはcontentがリスト形式のブロックで返る場合がある
     if isinstance(content, list):

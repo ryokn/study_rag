@@ -30,7 +30,7 @@ def cmd_chat(args: argparse.Namespace) -> None:
             continue
         if args.agent:
             from rag.agent import run_agent
-            answer = run_agent(vectorstore, question, history)
+            answer = run_agent(vectorstore, question, history, debug=args.debug)
         else:
             from rag.graph import run_graph
             answer = run_graph(vectorstore, question, history)
@@ -107,6 +107,7 @@ def main() -> None:
 
     p_chat = subparsers.add_parser("chat", help="RAGチャットを開始する")
     p_chat.add_argument("--agent", action="store_true", help="エージェントモードで実行（PDF検索・Web検索・計算・コード実行）")
+    p_chat.add_argument("--debug", action="store_true", help="ツール呼び出しのデバッグ出力を表示（--agentと併用）")
     p_chat.set_defaults(func=cmd_chat)
 
     p_eval = subparsers.add_parser("eval", help="RAGASで品質評価しMLflowに記録する")
