@@ -28,31 +28,48 @@ MLflowで実験を継続的に評価・比較できる仕組みを持つ。
 
 ### フェーズ1: CLIでのRAG基本動作
 
-- [ ] PDFファイルの読み込みとテキスト抽出
-- [ ] テキストのチャンク分割
-- [ ] Gemini Embeddingでベクトル化してChromaDBに保存
-- [ ] ユーザー質問をベクトル検索して関連チャンクを取得
-- [ ] Gemini LLMで回答生成
-- [ ] CLIから質問→回答のループ実行
+- [x] PDFファイルの読み込みとテキスト抽出
+- [x] テキストのチャンク分割
+- [x] Gemini Embeddingでベクトル化してChromaDBに保存
+- [x] ユーザー質問をベクトル検索して関連チャンクを取得
+- [x] LLMで回答生成
+- [x] CLIから質問→回答のループ実行
 
 ### フェーズ2: LangGraphによるフロー制御
 
-- [ ] 検索→判定→再検索 のグラフフロー実装
-- [ ] 回答品質が低い場合の再試行ロジック
-- [ ] グラフの可視化
+- [x] 検索→判定→再検索 のグラフフロー実装
+- [x] 回答品質が低い場合の再試行ロジック
 
 ### フェーズ3: MLflowによる実験評価
 
-- [ ] 各実験（チャンクサイズ、top-k、プロンプト）をMLflowにログ
-- [ ] 回答の品質スコア（faithfulness / relevance）を記録
-- [ ] 実験結果の比較・可視化
-- [ ] JSONファイルによる評価データセット管理（`--questions-file` オプション）
+- [x] 各実験（チャンクサイズ、top-k）をMLflowにログ
+- [x] 回答の品質スコア（faithfulness / answer_relevancy）を記録
+- [x] 実験結果の比較・可視化（SQLiteバックエンド）
+- [x] JSONファイルによる評価データセット管理（`--questions-file` オプション）
 
 ### フェーズ4: Streamlit Web UI
 
-- [ ] PDFアップロード画面
-- [ ] チャット形式の質問・回答UI
-- [ ] 参照チャンク（出典）の表示
+- [x] PDFアップロード画面
+- [x] チャット形式の質問・回答UI
+
+### フェーズ5: Ollama対応（ローカルLLM）
+
+- [x] `LLM_PROVIDER` 環境変数で Gemini / Ollama を切り替え
+- [x] `build_base_llm()` / `build_llm()` の分離（RAGAS・エージェント互換）
+
+### フェーズ6: 会話履歴対応（マルチターン）
+
+- [x] `RAGState` に `history` フィールドを追加
+- [x] プロンプトに過去の会話コンテキストを含める
+- [x] CLI・Web UI 両対応
+
+### フェーズ7: Agentic AI（ReActエージェント）
+
+- [x] LangGraph の ReAct エージェントを実装（`src/rag/agent.py`）
+- [x] ツール: PDF検索・DuckDuckGo Web検索・計算・Pythonコード実行
+- [x] `chat --agent` フラグ / Web UI トグルで切り替え
+- [x] `--debug` フラグでツール使用履歴を表示
+- [x] Gemini / Ollama 両対応
 
 ---
 
@@ -143,23 +160,27 @@ data/eval_questions.json（質問・正解リスト）
 
 ```
 study_rag/
-├── main.py                  # CLIエントリーポイント
-├── app.py                   # Streamlitエントリーポイント
 ├── pyproject.toml
-├── SPEC.md
+├── .env.example
 │
-├── rag/
-│   ├── __init__.py
-│   ├── ingest.py            # PDF読み込み・チャンク分割・DB保存
-│   ├── retriever.py         # ChromaDBからの検索
-│   ├── chain.py             # LangChainのRAGチェーン
-│   ├── graph.py             # LangGraphのフロー定義（RAGモード）
-│   ├── agent.py             # ReActエージェント（エージェントモード）
-│   ├── evaluator.py         # 回答品質評価
-│   └── llm.py               # LLMファクトリ（Gemini / Ollama 切り替え）
+├── src/
+│   ├── main.py              # CLIエントリーポイント
+│   ├── app.py               # Streamlitエントリーポイント
+│   └── rag/
+│       ├── __init__.py
+│       ├── ingest.py        # PDF読み込み・チャンク分割・DB保存
+│       ├── retriever.py     # ChromaDBからの検索
+│       ├── chain.py         # LangChainのRAGチェーン
+│       ├── graph.py         # LangGraphのフロー定義（RAGモード）
+│       ├── agent.py         # ReActエージェント（エージェントモード）
+│       ├── evaluator.py     # 回答品質評価
+│       └── llm.py           # LLMファクトリ（Gemini / Ollama 切り替え）
+│   └── mlflow_tracking/
+│       └── experiments.py   # MLflow実験ログユーティリティ
 │
-├── mlflow_tracking/
-│   └── experiments.py       # MLflow実験ログユーティリティ
+├── docs/
+│   ├── SPEC.md
+│   └── ENHANCEMENTS.md
 │
 ├── data/
 │   ├── pdfs/                         # 入力PDFの置き場所（gitignore対象）
@@ -225,10 +246,13 @@ LLM_MODEL=gemini-2.5-flash           # Ollama使用時は例: gemma4:2b
 
 ---
 
-## 実装順序
+## 実装済み機能
 
-1. `rag/ingest.py` — PDF読み込み・ChromaDB保存
-2. `rag/retriever.py` + `rag/chain.py` — CLIでの検索・回答
-3. `rag/graph.py` — LangGraphフロー
-4. `mlflow_tracking/` — 実験ログ・評価
-5. `app.py` — Streamlit UI
+1. `src/rag/ingest.py` — PDF読み込み・ChromaDB保存
+2. `src/rag/retriever.py` + `src/rag/chain.py` — CLIでの検索・回答
+3. `src/rag/graph.py` — LangGraphフロー（検索→生成→判定→再試行）
+4. `src/mlflow_tracking/` — 実験ログ・RAGAS評価
+5. `src/app.py` — Streamlit Web UI
+6. `src/rag/llm.py` — Gemini / Ollama 切り替え対応
+7. 会話履歴（マルチターン）対応
+8. `src/rag/agent.py` — ReActエージェント（`--agent` フラグ）
