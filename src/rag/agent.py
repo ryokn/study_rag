@@ -69,4 +69,8 @@ def run_agent(
     messages.append(HumanMessage(content=question))
 
     result = agent.invoke({"messages": messages})
-    return result["messages"][-1].content
+    content = result["messages"][-1].content
+    # Anthropicモデルはcontentがリスト形式のブロックで返る場合がある
+    if isinstance(content, list):
+        return "".join(block.get("text", "") for block in content if isinstance(block, dict))
+    return content
