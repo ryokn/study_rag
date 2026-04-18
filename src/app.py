@@ -62,7 +62,14 @@ if question := st.chat_input("質問を入力してください"):
         with st.spinner("検索・回答中..."):
             from rag.graph import run_graph
             vectorstore = get_vectorstore()
-            answer = run_graph(vectorstore, question)
+            # session_stateのメッセージから会話履歴を構築
+            history = [
+                (st.session_state.messages[i]["content"], st.session_state.messages[i + 1]["content"])
+                for i in range(0, len(st.session_state.messages) - 1, 2)
+                if st.session_state.messages[i]["role"] == "user"
+                and st.session_state.messages[i + 1]["role"] == "assistant"
+            ]
+            answer = run_graph(vectorstore, question, history)
         st.markdown(answer)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})

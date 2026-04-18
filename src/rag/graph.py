@@ -19,11 +19,22 @@ class RAGState(TypedDict):
     answer: str
     is_sufficient: bool
     retry_count: int
+    history: list[tuple[str, str]]
+
+
+def _format_history(history: list[tuple[str, str]]) -> str:
+    if not history:
+        return ""
+    lines = ["【過去の会話】"]
+    for q, a in history:
+        lines.append(f"ユーザー: {q}")
+        lines.append(f"アシスタント: {a}")
+    return "\n".join(lines) + "\n\n"
 
 
 def _build_answer_prompt() -> ChatPromptTemplate:
     return ChatPromptTemplate.from_template(
-        """以下のコンテキストを使って質問に答えてください。
+        """{history}以下のコンテキストを使って質問に答えてください。
 
 コンテキスト:
 {context}
@@ -55,7 +66,11 @@ def build_graph(vectorstore: Chroma) -> StateGraph:
 
     def generate_node(state: RAGState) -> RAGState:
         state["answer"] = answer_chain.invoke(
-            {"context": state["context"], "question": state["question"]}
+            {
+                "history": _format_history(state["history"]),
+                "context": state["context"],
+                "question": state["question"],
+            }
         )
         return state
 
@@ -91,10 +106,21 @@ def build_graph(vectorstore: Chroma) -> StateGraph:
     return graph.compile()
 
 
-def run_graph(vectorstore: Chroma, question: str) -> str:
+def run_graph(
+    vectorstore: Chroma,
+    question: str,
+    history: list[tuple[str, str]] | None = None,
+) -> str:
     """グラフを実行して回答を返す"""
     app = build_graph(vectorstore)
     final_state = app.invoke(
-        {"question": question, "context": "", "answer": "", "is_sufficient": False, "retry_count": 0}
+        {
+            "question": question,
+            "context": "",
+            "answer": "",
+            "is_sufficient": False,
+            "retry_count": 0,
+            "history": history or [],
+        }
     )
     return final_state["answer"]

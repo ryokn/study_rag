@@ -21,13 +21,15 @@ def cmd_chat(args: argparse.Namespace) -> None:
     vectorstore = load_vectorstore()
     print("RAGチャット開始 (終了するには 'exit' を入力)\n")
 
+    history: list[tuple[str, str]] = []
     while True:
         question = input("質問: ").strip()
         if question.lower() in ("exit", "quit", "q"):
             break
         if not question:
             continue
-        answer = run_graph(vectorstore, question)
+        answer = run_graph(vectorstore, question, history)
+        history.append((question, answer))
         print(f"\n回答: {answer}\n")
 
 
