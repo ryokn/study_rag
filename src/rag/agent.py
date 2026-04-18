@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
-from rag.llm import build_llm
+from rag.llm import build_base_llm
 from rag.retriever import retrieve
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
@@ -50,7 +50,7 @@ def _build_tools(vectorstore: Chroma) -> list:
 
 def build_agent(vectorstore: Chroma):
     """ReActエージェントを構築して返す"""
-    llm = build_llm()
+    llm = build_base_llm()
     tools = _build_tools(vectorstore)
     return create_react_agent(llm, tools)
 
