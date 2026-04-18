@@ -35,8 +35,11 @@ def ingest_uploaded_pdf(uploaded_file: st.runtime.uploaded_file_manager.Uploaded
         Path(tmp_path).unlink(missing_ok=True)
 
 
-# サイドバー: PDFアップロード
+# サイドバー: 設定・PDFアップロード
 with st.sidebar:
+    st.header("モード設定")
+    agent_mode = st.toggle("エージェントモード", value=False, help="PDF検索・Web検索・計算・コード実行ツールを自律的に使用します")
+
     st.header("PDFを取り込む")
     uploaded = st.file_uploader("PDFファイルを選択", type="pdf")
     if uploaded and st.button("取り込む"):
@@ -60,9 +63,19 @@ if question := st.chat_input("質問を入力してください"):
 
     with st.chat_message("assistant"):
         with st.spinner("検索・回答中..."):
-            from rag.graph import run_graph
             vectorstore = get_vectorstore()
-            answer = run_graph(vectorstore, question)
+            history = [
+                (st.session_state.messages[i]["content"], st.session_state.messages[i + 1]["content"])
+                for i in range(0, len(st.session_state.messages) - 1, 2)
+                if st.session_state.messages[i]["role"] == "user"
+                and st.session_state.messages[i + 1]["role"] == "assistant"
+            ]
+            if agent_mode:
+                from rag.agent import run_agent
+                answer = run_agent(vectorstore, question, history)
+            else:
+                from rag.graph import run_graph
+                answer = run_graph(vectorstore, question, history)
         st.markdown(answer)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})

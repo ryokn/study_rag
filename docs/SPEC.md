@@ -79,7 +79,7 @@ ChromaDB（./chroma_db/ に永続保存）
 
 ### 2. 質問応答フロー（`chat` コマンド / Web UI）
 
-LangGraph が以下のノードグラフを制御する。
+**RAGモード**（デフォルト）: LangGraph が以下のノードグラフを制御する。
 
 ```
 ユーザーの質問
@@ -97,6 +97,23 @@ LangGraph が以下のノードグラフを制御する。
     ▼ 【should_retry 分岐】
     ├─ 十分 or retry_count >= 2 ──→ 回答を返す
     └─ 不十分 ──────────────────→ search に戻る（最大2回再試行）
+```
+
+**エージェントモード**（`--agent` フラグ / Web UI トグル）: LangGraph の ReAct エージェントが以下のツールを自律的に選択・実行する。
+
+```
+ユーザーの質問
+    │
+    ▼ 【ReAct エージェント】（rag/agent.py）
+    │  利用可能なツール:
+    │  ├─ search_pdf    : ChromaDB でPDF検索
+    │  ├─ web_search    : DuckDuckGo でWeb検索
+    │  ├─ calculator    : 数式・数学関数の計算
+    │  └─ python_repl   : Pythonコード実行
+    │
+    ▼ ツール呼び出し → 結果を観察 → 必要なら再度ツール選択
+    │
+    └─ 十分な情報が揃ったら回答を返す
 ```
 
 ---
@@ -136,7 +153,8 @@ study_rag/
 │   ├── ingest.py            # PDF読み込み・チャンク分割・DB保存
 │   ├── retriever.py         # ChromaDBからの検索
 │   ├── chain.py             # LangChainのRAGチェーン
-│   ├── graph.py             # LangGraphのフロー定義
+│   ├── graph.py             # LangGraphのフロー定義（RAGモード）
+│   ├── agent.py             # ReActエージェント（エージェントモード）
 │   ├── evaluator.py         # 回答品質評価
 │   └── llm.py               # LLMファクトリ（Gemini / Ollama 切り替え）
 │
