@@ -4,15 +4,17 @@
 
 ---
 
-## 1. DuckDB + Delta Table を使った構造化データ検索
+## 1. DuckDB を使った構造化データ検索 ✅
 
-- 非構造化テキスト（PDF）だけでなく、CSV・Parquet等の構造化データも検索対象にする
-- DuckDB でインメモリSQL検索、Delta Table でデータのバージョン管理
-- LangChain の SQLDatabaseChain や Tool と組み合わせてRAGから自然言語でクエリ実行
+- 非構造化テキスト（PDF）だけでなく、CSVの構造化データも検索対象にする
+- DuckDB でインメモリSQL検索、LLMが自然言語→SQLに自動変換
+- `table` コマンド（CLI）/ テーブル検索モード（Web UI）で独立して利用可能
+- `src/rag/table_search.py` に実装。`data/csv/` にCSVを置くだけで自動認識
 
 **学べること**
-- DuckDB / Delta Lake の基本操作
-- テキスト検索と構造化データ検索のハイブリッドRAG
+- DuckDB の基本操作（`read_csv_auto`、インメモリDB）
+- LLMを使ったNL→SQL変換パターン
+- テキスト検索と構造化データ検索のハイブリッドRAGアーキテクチャ
 
 ---
 

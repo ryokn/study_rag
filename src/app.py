@@ -35,18 +35,37 @@ def ingest_uploaded_pdf(uploaded_file: st.runtime.uploaded_file_manager.Uploaded
         Path(tmp_path).unlink(missing_ok=True)
 
 
+@st.cache_resource
+def get_table_conn():
+    from rag.table_search import load_csv_tables
+    return load_csv_tables()
+
+
 # サイドバー: 設定・PDFアップロード
 with st.sidebar:
     st.header("モード設定")
-    agent_mode = st.toggle("エージェントモード", value=False, help="PDF検索・Web検索・計算・コード実行ツールを自律的に使用します")
+    mode = st.radio(
+        "検索モード",
+        ["RAG（PDF）", "エージェント", "テーブル検索（CSV）"],
+        help="RAG: PDFベクトル検索 / エージェント: 複数ツール自律実行 / テーブル: CSVへのSQL検索",
+    )
 
-    st.header("PDFを取り込む")
-    uploaded = st.file_uploader("PDFファイルを選択", type="pdf")
-    if uploaded and st.button("取り込む"):
-        with st.spinner("取り込み中..."):
-            ingest_uploaded_pdf(uploaded)
-            st.cache_resource.clear()
-        st.success("取り込み完了")
+    if mode == "テーブル検索（CSV）":
+        st.header("利用可能なテーブル")
+        try:
+            from rag.table_search import get_schema_info
+            conn = get_table_conn()
+            st.text(get_schema_info(conn))
+        except Exception as e:
+            st.warning(f"CSVロードエラー: {e}")
+    else:
+        st.header("PDFを取り込む")
+        uploaded = st.file_uploader("PDFファイルを選択", type="pdf")
+        if uploaded and st.button("取り込む"):
+            with st.spinner("取り込み中..."):
+                ingest_uploaded_pdf(uploaded)
+                st.cache_resource.clear()
+            st.success("取り込み完了")
 
 # チャット
 if "messages" not in st.session_state:
@@ -63,19 +82,24 @@ if question := st.chat_input("質問を入力してください"):
 
     with st.chat_message("assistant"):
         with st.spinner("検索・回答中..."):
-            vectorstore = get_vectorstore()
-            history = [
-                (st.session_state.messages[i]["content"], st.session_state.messages[i + 1]["content"])
-                for i in range(0, len(st.session_state.messages) - 1, 2)
-                if st.session_state.messages[i]["role"] == "user"
-                and st.session_state.messages[i + 1]["role"] == "assistant"
-            ]
-            if agent_mode:
-                from rag.agent import run_agent
-                answer = run_agent(vectorstore, question, history)
+            if mode == "テーブル検索（CSV）":
+                from rag.table_search import query_tables
+                conn = get_table_conn()
+                answer = query_tables(conn, question)
             else:
-                from rag.graph import run_graph
-                answer = run_graph(vectorstore, question, history)
+                vectorstore = get_vectorstore()
+                history = [
+                    (st.session_state.messages[i]["content"], st.session_state.messages[i + 1]["content"])
+                    for i in range(0, len(st.session_state.messages) - 1, 2)
+                    if st.session_state.messages[i]["role"] == "user"
+                    and st.session_state.messages[i + 1]["role"] == "assistant"
+                ]
+                if mode == "エージェント":
+                    from rag.agent import run_agent
+                    answer = run_agent(vectorstore, question, history)
+                else:
+                    from rag.graph import run_graph
+                    answer = run_graph(vectorstore, question, history)
         st.markdown(answer)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
