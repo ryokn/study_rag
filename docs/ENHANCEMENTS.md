@@ -16,11 +16,13 @@
 
 ---
 
-## 2. Agentic AI の実装
+## 2. Agentic AI の実装 ✅
 
 - 単純な検索→回答だけでなく、複数ツールを自律的に選択・実行するエージェントを実装
-- LangGraph のマルチエージェント構成、またはReActパターンで実装
-- ツール例: PDF検索・Web検索・計算・コード実行
+- LangGraph の ReAct パターンで実装（`src/rag/agent.py`）
+- ツール: PDF検索・DuckDuckGo Web検索・計算（math）・Pythonコード実行
+- `chat --agent` フラグ / Web UI トグルで切り替え可能
+- Gemini / Ollama 両対応
 
 **学べること**
 - LangGraph のマルチエージェント設計

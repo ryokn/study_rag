@@ -16,10 +16,10 @@ def cmd_ingest(args: argparse.Namespace) -> None:
 
 def cmd_chat(args: argparse.Namespace) -> None:
     from rag.ingest import load_vectorstore
-    from rag.graph import run_graph
 
     vectorstore = load_vectorstore()
-    print("RAGチャット開始 (終了するには 'exit' を入力)\n")
+    mode = "エージェント" if args.agent else "RAG"
+    print(f"{mode}チャット開始 (終了するには 'exit' を入力)\n")
 
     history: list[tuple[str, str]] = []
     while True:
@@ -28,7 +28,12 @@ def cmd_chat(args: argparse.Namespace) -> None:
             break
         if not question:
             continue
-        answer = run_graph(vectorstore, question, history)
+        if args.agent:
+            from rag.agent import run_agent
+            answer = run_agent(vectorstore, question, history, debug=args.debug)
+        else:
+            from rag.graph import run_graph
+            answer = run_graph(vectorstore, question, history)
         history.append((question, answer))
         print(f"\n回答: {answer}\n")
 
@@ -101,6 +106,8 @@ def main() -> None:
     p_ingest.set_defaults(func=cmd_ingest)
 
     p_chat = subparsers.add_parser("chat", help="RAGチャットを開始する")
+    p_chat.add_argument("--agent", action="store_true", help="エージェントモードで実行（PDF検索・Web検索・計算・コード実行）")
+    p_chat.add_argument("--debug", action="store_true", help="ツール呼び出しのデバッグ出力を表示（--agentと併用）")
     p_chat.set_defaults(func=cmd_chat)
 
     p_eval = subparsers.add_parser("eval", help="RAGASで品質評価しMLflowに記録する")

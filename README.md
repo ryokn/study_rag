@@ -75,14 +75,24 @@ uv run src/main.py ingest
 ### CLIチャット
 
 ```bash
+# RAGモード（デフォルト）
 uv run src/main.py chat
+
+# エージェントモード（PDF検索・Web検索・計算・コード実行）
+uv run src/main.py chat --agent
+
+# エージェントモード + ツール使用のデバッグ出力
+uv run src/main.py chat --agent --debug
 ```
 
 ```
-RAGチャット開始 (終了するには 'exit' を入力)
+エージェントチャット開始 (終了するには 'exit' を入力)
 
-質問: このドキュメントの概要を教えてください
-回答: ...
+質問: 今日の横浜の天気は？
+  [ツール呼び出し] web_search(query='横浜 今日 天気')
+  [ツール結果] 横浜市の今日の天気は晴れ、最高気温22℃...
+
+回答: 今日の横浜は晴れで最高気温22℃です。
 ```
 
 ### Web UI
@@ -171,15 +181,24 @@ ChromaDB（./chroma_db/）に永続保存
 
 ### 質問応答フロー（`chat` / Web UI）
 
-LangGraph が「検索 → 生成 → 品質判定 → 再試行」のグラフを制御します。
+**RAGモード**（デフォルト）: LangGraph が「検索 → 生成 → 品質判定 → 再試行」を制御します。
 
 ```
 ユーザーの質問
     ↓ ChromaDB 類似検索（top_k=5）
-    ↓ Gemini LLM で回答生成
-    ↓ 回答品質を Gemini に判定させる
+    ↓ LLM で回答生成
+    ↓ 回答品質をLLMに判定させる
     ├─ 十分 or 2回試行済み → 回答を返す
     └─ 不十分 → 再検索（最大2回）
+```
+
+**エージェントモード**（`--agent`）: ReActエージェントが複数ツールを自律的に選択・実行します。
+
+```
+ユーザーの質問
+    ↓ ツール選択（search_pdf / web_search / calculator / python_repl）
+    ↓ ツール実行 → 結果を観察 → 必要なら再度ツール選択
+    └─ 回答を返す
 ```
 
 ### 評価フロー（`eval`）
@@ -209,6 +228,7 @@ study_rag/
 │   │   ├── retriever.py     # ChromaDBからの検索
 │   │   ├── chain.py         # LangChain RAGチェーン
 │   │   ├── graph.py         # LangGraph フロー（検索→生成→品質判定→再試行）
+│   │   ├── agent.py         # ReActエージェント（PDF検索・Web検索・計算・コード実行）
 │   │   ├── evaluator.py     # RAGAS品質評価
 │   │   └── llm.py           # LLMファクトリ（Gemini / Ollama 切り替え）
 │   └── mlflow_tracking/
@@ -242,3 +262,6 @@ study_rag/
 - [x] フェーズ2: LangGraphによるフロー制御（再試行ロジック）
 - [x] フェーズ3: MLflow + RAGASによる実験評価
 - [x] フェーズ4: Streamlit Web UI
+- [x] フェーズ5: Ollama対応（ローカルLLM切り替え）
+- [x] フェーズ6: 会話履歴対応（マルチターン）
+- [x] フェーズ7: Agentic AI（ReActエージェント + 複数ツール）
