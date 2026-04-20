@@ -56,6 +56,26 @@ def _load_eval_dataset(args: argparse.Namespace) -> tuple[list[str], list[str] |
     raise ValueError("--questions または --questions-file のいずれかを指定してください")
 
 
+def cmd_table(args: argparse.Namespace) -> None:
+    from rag.table_search import load_csv_tables, get_schema_info, query_tables
+
+    conn = load_csv_tables(args.csv_dir)
+    schema_info = get_schema_info(conn)
+    print("テーブル検索チャット開始 (終了するには 'exit' を入力)\n")
+    print("=== 利用可能なテーブル ===")
+    print(schema_info)
+    print()
+
+    while True:
+        question = input("質問: ").strip()
+        if question.lower() in ("exit", "quit", "q"):
+            break
+        if not question:
+            continue
+        answer = query_tables(conn, question)
+        print(f"\n結果:\n{answer}\n")
+
+
 def cmd_eval(args: argparse.Namespace) -> None:
     from rag.ingest import load_vectorstore
     from rag.retriever import retrieve
@@ -109,6 +129,10 @@ def main() -> None:
     p_chat.add_argument("--agent", action="store_true", help="エージェントモードで実行（PDF検索・Web検索・計算・コード実行）")
     p_chat.add_argument("--debug", action="store_true", help="ツール呼び出しのデバッグ出力を表示（--agentと併用）")
     p_chat.set_defaults(func=cmd_chat)
+
+    p_table = subparsers.add_parser("table", help="CSVファイルを自然言語で検索する（DuckDB）")
+    p_table.add_argument("--csv-dir", default="./data/csv", help="CSVディレクトリ")
+    p_table.set_defaults(func=cmd_table)
 
     p_eval = subparsers.add_parser("eval", help="RAGASで品質評価しMLflowに記録する")
     p_eval_group = p_eval.add_mutually_exclusive_group()

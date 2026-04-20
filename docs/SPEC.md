@@ -71,6 +71,14 @@ MLflowで実験を継続的に評価・比較できる仕組みを持つ。
 - [x] `--debug` フラグでツール使用履歴を表示
 - [x] Gemini / Ollama 両対応
 
+### フェーズ8: DuckDBによる構造化データ検索
+
+- [x] DuckDB でCSVファイルをインメモリテーブルとして読み込む（`src/rag/table_search.py`）
+- [x] LLMが自然言語→DuckDB SQLに自動変換して実行
+- [x] `table` サブコマンド追加（CLI）
+- [x] Web UI にテーブル検索モード追加（サイドバーのラジオボタンで切り替え）
+- [x] サンプルCSV自動生成（都道府県人口・商品カタログ）
+
 ---
 
 ## 処理フロー
@@ -133,6 +141,24 @@ ChromaDB（./chroma_db/ に永続保存）
     └─ 十分な情報が揃ったら回答を返す
 ```
 
+**テーブル検索モード**（`table` コマンド / Web UI テーブル検索）: LLMがCSVスキーマを参照してSQLを生成し、DuckDBで実行する。
+
+```
+ユーザーの自然言語質問
+    │
+    ▼ 【スキーマ取得】（rag/table_search.py）
+    │  data/csv/*.csv → DuckDB インメモリテーブル
+    │  全テーブルのカラム定義・行数を取得
+    │
+    ▼ 【NL→SQL変換】
+    │  LLM（Gemini or Ollama）がスキーマを参照してSQLを生成
+    │
+    ▼ 【SQL実行】
+    │  DuckDB でSQL実行 → DataFrameとして取得
+    │
+    └─ 結果 + 実行SQLを返す
+```
+
 ---
 
 ### 3. 評価フロー（`eval` コマンド）
@@ -173,6 +199,7 @@ study_rag/
 │       ├── chain.py         # LangChainのRAGチェーン
 │       ├── graph.py         # LangGraphのフロー定義（RAGモード）
 │       ├── agent.py         # ReActエージェント（エージェントモード）
+│       ├── table_search.py  # DuckDBによるCSV構造化データ検索
 │       ├── evaluator.py     # 回答品質評価
 │       └── llm.py           # LLMファクトリ（Gemini / Ollama 切り替え）
 │   └── mlflow_tracking/
