@@ -8,14 +8,14 @@ from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from rag.llm import build_embeddings
 
 load_dotenv()
 
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
 COLLECTION_NAME = "study_rag"
 
@@ -47,8 +47,9 @@ def build_vectorstore(chunks: list[Document]) -> Chroma:
 
     無料枠のレート制限（100リクエスト/分）に対応するため、
     EMBED_BATCH_SIZE 件ごとに分割して EMBED_BATCH_INTERVAL 秒待機しながら保存する。
+    Embeddingプロバイダーは LLM_PROVIDER 環境変数に従い build_embeddings() が選択する。
     """
-    embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL)
+    embeddings = build_embeddings()
     vectorstore: Chroma | None = None
     total = len(chunks)
 
@@ -96,7 +97,7 @@ def ingest(pdf_dir: str = "./data/pdfs") -> Chroma:
 
 def load_vectorstore() -> Chroma:
     """既存のChromaDBを読み込む"""
-    embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL)
+    embeddings = build_embeddings()
     return Chroma(
         persist_directory=CHROMA_PERSIST_DIR,
         embedding_function=embeddings,
