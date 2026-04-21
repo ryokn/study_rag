@@ -1,6 +1,6 @@
 # study-rag
 
-LangChain / LangGraph / Gemini API・Ollama を使ったRAGサンプル実装。  
+LangChain / LangGraph / Gemini API・Azure OpenAI・Ollama を使ったRAGサンプル実装。  
 ローカルPDFを対象に検索・回答生成・品質評価までを学習目的で構築したプロジェクト。
 
 ## 技術スタック
@@ -9,8 +9,9 @@ LangChain / LangGraph / Gemini API・Ollama を使ったRAGサンプル実装。
 |---|---|
 | RAGフレームワーク | LangChain |
 | エージェント/フロー制御 | LangGraph |
-| LLM / Embedding | Gemini API または Ollama（ローカルLLM） |
+| LLM / Embedding | Gemini API / Azure OpenAI / Ollama（ローカルLLM） |
 | ベクターDB | ChromaDB（ローカル永続化） |
+| 構造化データ検索 | DuckDB（インメモリSQL） |
 | 実験管理 | MLflow |
 | Web UI | Streamlit |
 | パッケージ管理 | uv |
@@ -38,6 +39,16 @@ LLM_PROVIDER=gemini
 LLM_MODEL=gemini-2.5-flash
 ```
 
+**Azure OpenAI を使う場合：**
+```env
+LLM_PROVIDER=azure_openai
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2024-02-01
+LLM_MODEL=gpt-4o                               # チャット用デプロイメント名
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small  # Embedding用デプロイメント名
+```
+
 **Ollama（ローカルLLM）を使う場合：**
 ```bash
 # Ollamaのインストール
@@ -53,6 +64,8 @@ ollama serve
 ```env
 LLM_PROVIDER=ollama
 LLM_MODEL=gemma4:2b
+# EmbeddingはGeminiを使用するため GOOGLE_API_KEY も設定すること
+GOOGLE_API_KEY=your_gemini_api_key
 ```
 
 **3. PDFファイルを配置**
@@ -229,8 +242,9 @@ study_rag/
 │   │   ├── chain.py         # LangChain RAGチェーン
 │   │   ├── graph.py         # LangGraph フロー（検索→生成→品質判定→再試行）
 │   │   ├── agent.py         # ReActエージェント（PDF検索・Web検索・計算・コード実行）
+│   │   ├── table_search.py  # DuckDBによるCSV構造化データ検索（NL→SQL）
 │   │   ├── evaluator.py     # RAGAS品質評価
-│   │   └── llm.py           # LLMファクトリ（Gemini / Ollama 切り替え）
+│   │   └── llm.py           # LLMファクトリ（Gemini / Azure OpenAI / Ollama 切り替え）
 │   └── mlflow_tracking/
 │       └── experiments.py   # MLflow実験ログ
 │
@@ -247,14 +261,21 @@ study_rag/
 
 `.env` で以下を変更して MLflow で実験比較できます。
 
+<!-- AUTO-GENERATED: .env.example から生成 -->
 | 変数 | デフォルト | 説明 |
 |---|---|---|
-| `CHUNK_SIZE` | 500 | チャンク分割サイズ（文字数） |
-| `CHUNK_OVERLAP` | 50 | チャンク間のオーバーラップ |
-| `TOP_K` | 5 | 検索で取得するチャンク数 |
-| `LLM_PROVIDER` | gemini | LLMプロバイダー（`gemini` または `ollama`） |
-| `LLM_MODEL` | gemini-2.5-flash | 使用するモデル名（Ollama例: `gemma4:2b`） |
-| `EMBEDDING_MODEL` | gemini-embedding-001 | 埋め込みモデル（Gemini専用） |
+| `LLM_PROVIDER` | `gemini` | LLMプロバイダー（`gemini` / `azure_openai` / `ollama`） |
+| `LLM_MODEL` | `gemini-2.5-flash` | チャット用モデル名またはデプロイメント名 |
+| `CHUNK_SIZE` | `500` | チャンク分割サイズ（文字数） |
+| `CHUNK_OVERLAP` | `50` | チャンク間のオーバーラップ |
+| `TOP_K` | `5` | 検索で取得するチャンク数 |
+| `GOOGLE_API_KEY` | — | Gemini API キー（`gemini` / `ollama` 使用時） |
+| `EMBEDDING_MODEL` | `gemini-embedding-001` | Gemini Embedding モデル名 |
+| `AZURE_OPENAI_API_KEY` | — | Azure OpenAI API キー（`azure_openai` 使用時） |
+| `AZURE_OPENAI_ENDPOINT` | — | Azure OpenAI エンドポイント URL |
+| `AZURE_OPENAI_API_VERSION` | `2024-02-01` | Azure OpenAI API バージョン |
+| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | `text-embedding-3-small` | Embedding 用デプロイメント名 |
+<!-- END AUTO-GENERATED -->
 
 ## 実装フェーズ
 
@@ -265,3 +286,5 @@ study_rag/
 - [x] フェーズ5: Ollama対応（ローカルLLM切り替え）
 - [x] フェーズ6: 会話履歴対応（マルチターン）
 - [x] フェーズ7: Agentic AI（ReActエージェント + 複数ツール）
+- [x] フェーズ8: DuckDBによる構造化データ検索（NL→SQL）
+- [x] フェーズ9: Azure OpenAI対応（Gemini / Azure OpenAI / Ollama の切り替え）

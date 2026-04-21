@@ -14,8 +14,8 @@ MLflowで実験を継続的に評価・比較できる仕組みを持つ。
 |---|---|
 | RAGフレームワーク | LangChain |
 | エージェント/フロー制御 | LangGraph |
-| LLM | Gemini API（`gemini-2.5-flash`）または Ollama（`gemma4`等） |
-| Embedding | Gemini API（`gemini-embedding-001`） |
+| LLM | Gemini API（`gemini-2.5-flash`）/ Azure OpenAI（`gpt-4o`等）/ Ollama（`gemma4`等） |
+| Embedding | Gemini API（`gemini-embedding-001`）/ Azure OpenAI（`text-embedding-3-small`等） |
 | ベクターDB | ChromaDB（ローカル永続化） |
 | 実験管理 | MLflow |
 | Web UI | Streamlit |
@@ -78,6 +78,14 @@ MLflowで実験を継続的に評価・比較できる仕組みを持つ。
 - [x] `table` サブコマンド追加（CLI）
 - [x] Web UI にテーブル検索モード追加（サイドバーのラジオボタンで切り替え）
 - [x] サンプルCSV自動生成（都道府県人口・商品カタログ）
+
+### フェーズ9: Azure OpenAI対応（マルチプロバイダー）
+
+- [x] `LLM_PROVIDER=azure_openai` で Azure OpenAI（GPT-4o等）に切り替え可能
+- [x] `AzureChatOpenAI` / `AzureOpenAIEmbeddings` を `langchain-openai` で実装
+- [x] `build_embeddings()` を `llm.py` に新設しEmbedding生成を一元管理
+- [x] `ingest.py` / `evaluator.py` の Embedding 生成を `build_embeddings()` に統一
+- [x] Gemini / Azure OpenAI / Ollama の3プロバイダーに対応
 
 ---
 
@@ -225,9 +233,10 @@ study_rag/
 | `CHUNK_SIZE` | 500 | チャンク分割サイズ（文字数） |
 | `CHUNK_OVERLAP` | 50 | チャンク間のオーバーラップ |
 | `TOP_K` | 5 | 検索で取得するチャンク数 |
-| `LLM_PROVIDER` | `gemini` | LLMプロバイダー（`gemini` または `ollama`） |
-| `LLM_MODEL` | `gemini-2.5-flash` | 使用するモデル名（Ollama例: `gemma4:2b`） |
-| `EMBEDDING_MODEL` | `gemini-embedding-001` | 埋め込みモデル（Gemini専用） |
+| `LLM_PROVIDER` | `gemini` | LLMプロバイダー（`gemini` / `azure_openai` / `ollama`） |
+| `LLM_MODEL` | `gemini-2.5-flash` | チャット用モデル名またはデプロイメント名（Azure例: `gpt-4o`） |
+| `EMBEDDING_MODEL` | `gemini-embedding-001` | 埋め込みモデル（Gemini使用時） |
+| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | `text-embedding-3-small` | Azure Embedding デプロイメント名 |
 
 これらの値をMLflowで変えながら実験比較する。
 

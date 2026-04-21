@@ -25,7 +25,7 @@ graph TB
     end
 
     subgraph External["外部サービス"]
-        LLM["LLM<br/>Gemini / Ollama"]
+        LLM["LLM<br/>Gemini / Azure OpenAI / Ollama"]
         DDG["DuckDuckGo<br/>Web検索"]
     end
 
@@ -62,7 +62,7 @@ flowchart LR
     PDF["data/pdfs/*.pdf"]
     LOAD["PyPDFLoader<br/>ページ単位で読み込み"]
     SPLIT["RecursiveCharacterTextSplitter<br/>CHUNK_SIZE=500 / OVERLAP=50"]
-    EMBED["GoogleGenerativeAIEmbeddings<br/>gemini-embedding-001"]
+    EMBED["Embeddings<br/>Gemini / Azure OpenAI（build_embeddings()）"]
     CHROMA[("ChromaDB<br/>chroma_db/")]
 
     PDF --> LOAD --> SPLIT --> EMBED --> CHROMA
