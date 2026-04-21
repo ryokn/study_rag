@@ -17,15 +17,12 @@ RAGASとは:
 import os
 
 from datasets import Dataset
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from ragas import RunConfig, evaluate
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import answer_relevancy, faithfulness
 
-from rag.llm import build_base_llm
-
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
+from rag.llm import build_base_llm, build_embeddings
 
 # 無料枠対応: 並列リクエスト数を1に絞り、タイムアウトを長めに設定
 # max_workers=1 はレート制限（1分あたりのリクエスト数上限）を超えないための設定
@@ -48,9 +45,9 @@ def _build_ragas_embeddings() -> LangchainEmbeddingsWrapper:
 
     answer_relevancy の計算には質問と回答のベクトル類似度が使われるため
     Embeddingモデルも必要になる。
+    プロバイダーは LLM_PROVIDER 環境変数に従い build_embeddings() が選択する。
     """
-    embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL)
-    return LangchainEmbeddingsWrapper(embeddings)
+    return LangchainEmbeddingsWrapper(build_embeddings())
 
 
 def evaluate_rag(
