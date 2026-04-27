@@ -87,6 +87,20 @@ MLflowで実験を継続的に評価・比較できる仕組みを持つ。
 - [x] `ingest.py` / `evaluator.py` の Embedding 生成を `build_embeddings()` に統一
 - [x] Gemini / Azure OpenAI / Ollama の3プロバイダーに対応
 
+### フェーズ10: 表・図を含むPDFの高精度取り込み（PyMuPDF4LLM）
+
+- [x] `pymupdf4llm` でPDFをMarkdown形式に変換し表構造を保持
+- [x] 環境変数 `PDF_LOADER` で `pypdf`（既存）/ `pymupdf4llm` を切り替え可能
+- [x] `ingest` 実行時にチャンク内容をJSONログとして出力（`CHUNK_LOG_DIR` 環境変数）
+
+### フェーズ11: マルチエージェント（Supervisor パターン）
+
+- [x] LangGraph の Supervisor パターンで3エージェント構成を実装（`src/rag/multi_agent.py`）
+- [x] Supervisor → ResearchAgent（PDF・Web検索）→ AnswerAgent（回答生成）のフロー
+- [x] `multi-agent` サブコマンドを追加（`--debug` フラグでエージェント動作を表示）
+- [x] Human in the Loop（HITL）対応: ResearchAgent 完了後にユーザーが確認・追加指示を入力可能
+- [x] `MemorySaver` チェックポインターで `interrupt()` による一時停止・再開を実装
+
 ---
 
 ## 処理フロー
@@ -167,6 +181,26 @@ ChromaDB（./chroma_db/ に永続保存）
     └─ 結果 + 実行SQLを返す
 ```
 
+**マルチエージェントモード**（`multi-agent` コマンド）: LangGraph の Supervisor パターンで複数エージェントが役割分担する。HITL により ResearchAgent 完了後にユーザーが確認できる。
+
+```
+ユーザーの質問
+    │
+    ▼ 【Supervisor ノード】（rag/multi_agent.py）
+    │  質問を分析し次の担当エージェントを決定
+    │
+    ├─ 調査が必要 → 【ResearchAgent】（ReAct: PDF検索・Web検索）
+    │                    │
+    │                    ▼ [HITL] interrupt(): 調査結果をユーザーに提示
+    │                    │  y=進む / r=追加調査の指示 / n=キャンセル
+    │                    │
+    │                    └─ Supervisor へ戻る（MemorySaver で状態を保持）
+    │
+    └─ 情報が揃った → 【AnswerAgent】（調査結果をもとに最終回答生成）
+                            │
+                            └─ 終了
+```
+
 ---
 
 ### 3. 評価フロー（`eval` コマンド）
@@ -207,9 +241,10 @@ study_rag/
 │       ├── chain.py         # LangChainのRAGチェーン
 │       ├── graph.py         # LangGraphのフロー定義（RAGモード）
 │       ├── agent.py         # ReActエージェント（エージェントモード）
+│       ├── multi_agent.py   # Supervisorパターンのマルチエージェント（HITL対応）
 │       ├── table_search.py  # DuckDBによるCSV構造化データ検索
 │       ├── evaluator.py     # 回答品質評価
-│       └── llm.py           # LLMファクトリ（Gemini / Ollama 切り替え）
+│       └── llm.py           # LLMファクトリ（Gemini / Azure OpenAI / Ollama 切り替え）
 │   └── mlflow_tracking/
 │       └── experiments.py   # MLflow実験ログユーティリティ
 │
@@ -237,6 +272,8 @@ study_rag/
 | `LLM_MODEL` | `gemini-2.5-flash` | チャット用モデル名またはデプロイメント名（Azure例: `gpt-4o`） |
 | `EMBEDDING_MODEL` | `gemini-embedding-001` | 埋め込みモデル（Gemini使用時） |
 | `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | `text-embedding-3-small` | Azure Embedding デプロイメント名 |
+| `PDF_LOADER` | `pypdf` | PDFローダー（`pypdf` / `pymupdf4llm`） |
+| `CHUNK_LOG_DIR` | `./logs` | チャンクJSONログ出力先 |
 
 これらの値をMLflowで変えながら実験比較する。
 
@@ -261,15 +298,49 @@ study_rag/
 
 ---
 
+<!-- AUTO-GENERATED -->
 ## 環境変数
 
-```env
-GOOGLE_API_KEY=your_gemini_api_key   # Gemini使用時のみ必須
-MLFLOW_TRACKING_URI=sqlite:///mlruns.db
-CHROMA_PERSIST_DIR=./chroma_db
-LLM_PROVIDER=gemini                  # gemini または ollama
-LLM_MODEL=gemini-2.5-flash           # Ollama使用時は例: gemma4:2b
-```
+`.env.example` より生成。
+
+### 共通
+
+| 変数名 | 必須 | 説明 | 例 |
+|---|---|---|---|
+| `MLFLOW_TRACKING_URI` | No | MLflow バックエンドURI | `sqlite:///mlruns.db` |
+| `CHROMA_PERSIST_DIR` | No | ChromaDB 永続化ディレクトリ | `./chroma_db` |
+| `LLM_PROVIDER` | No | LLMプロバイダー（デフォルト: `gemini`） | `gemini` / `azure_openai` / `ollama` |
+| `EMBED_BATCH_SIZE` | No | Embedding バッチサイズ（デフォルト: `80`） | `500` |
+| `EMBED_BATCH_INTERVAL` | No | バッチ間待機秒数（デフォルト: `65`） | `0` |
+| `LLM_REQUEST_INTERVAL` | No | LLMリクエスト間隔（秒, デフォルト: `13`） | `2` |
+| `PDF_LOADER` | No | PDFローダー切り替え（デフォルト: `pypdf`） | `pypdf` / `pymupdf4llm` |
+| `CHUNK_LOG_DIR` | No | チャンクJSONログ出力先 | `./logs` |
+
+### Gemini（`LLM_PROVIDER=gemini`）
+
+| 変数名 | 必須 | 説明 | 例 |
+|---|---|---|---|
+| `GOOGLE_API_KEY` | **Yes** | Gemini API キー | `AIza...` |
+| `LLM_MODEL` | No | チャット用モデル（デフォルト: `gemini-2.0-flash-lite`） | `gemini-2.5-flash` |
+| `EMBEDDING_MODEL` | No | Embedding モデル | `gemini-embedding-001` |
+
+### Azure OpenAI（`LLM_PROVIDER=azure_openai`）
+
+| 変数名 | 必須 | 説明 | 例 |
+|---|---|---|---|
+| `AZURE_OPENAI_API_KEY` | **Yes** | Azure OpenAI APIキー | `sk-...` |
+| `AZURE_OPENAI_ENDPOINT` | **Yes** | Azure リソースエンドポイント | `https://your-resource.openai.azure.com/` |
+| `AZURE_OPENAI_API_VERSION` | No | API バージョン | `2024-02-01` |
+| `LLM_MODEL` | **Yes** | チャット用デプロイメント名 | `gpt-4o` |
+| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | **Yes** | Embedding デプロイメント名 | `text-embedding-3-small` |
+
+### Ollama（`LLM_PROVIDER=ollama`）
+
+| 変数名 | 必須 | 説明 | 例 |
+|---|---|---|---|
+| `LLM_MODEL` | **Yes** | チャット用モデル名 | `gemma4:e2b` |
+| `OLLAMA_EMBEDDING_MODEL` | **Yes** | Embedding モデル名 | `nomic-embed-text` |
+<!-- AUTO-GENERATED -->
 
 ---
 
@@ -284,11 +355,13 @@ LLM_MODEL=gemini-2.5-flash           # Ollama使用時は例: gemma4:2b
 
 ## 実装済み機能
 
-1. `src/rag/ingest.py` — PDF読み込み・ChromaDB保存
+1. `src/rag/ingest.py` — PDF読み込み・ChromaDB保存（PyPDF / PyMuPDF4LLM 切り替え対応）
 2. `src/rag/retriever.py` + `src/rag/chain.py` — CLIでの検索・回答
 3. `src/rag/graph.py` — LangGraphフロー（検索→生成→判定→再試行）
 4. `src/mlflow_tracking/` — 実験ログ・RAGAS評価
 5. `src/app.py` — Streamlit Web UI
-6. `src/rag/llm.py` — Gemini / Ollama 切り替え対応
+6. `src/rag/llm.py` — Gemini / Azure OpenAI / Ollama 3プロバイダー対応
 7. 会話履歴（マルチターン）対応
 8. `src/rag/agent.py` — ReActエージェント（`--agent` フラグ）
+9. `src/rag/table_search.py` — DuckDB による CSV 構造化データ検索
+10. `src/rag/multi_agent.py` — Supervisor パターンのマルチエージェント（HITL対応）

@@ -59,15 +59,16 @@
 
 ---
 
-## 5. 表・図を含むPDFの高精度取り込み（PyMuPDF4LLM）
+## 5. 表・図を含むPDFの高精度取り込み（PyMuPDF4LLM）✅
 
 - 現状の `PyPDFLoader` は表がスペース区切りの崩れたテキストになる問題がある
 - `pymupdf4llm` を使いPDFをMarkdown形式に変換することで表構造を保持する
 - 図のキャプション・段組レイアウトも正しく処理できるようになる
+- `ingest` 実行時にチャンク内容をJSONログとして出力（`CHUNK_LOG_DIR` 環境変数）
 
-**実装方針**
-- `src/rag/ingest.py` のローダー部分を `pymupdf4llm` に置き換え
-- 環境変数 `PDF_LOADER` で `pypdf`（既存）/ `pymupdf4llm` を切り替え可能にする
+**実装済み**
+- `src/rag/ingest.py` に `_load_pdf_pymupdf4llm()` を追加
+- 環境変数 `PDF_LOADER=pymupdf4llm` で切り替え可能
 
 **学べること**
 - PDFパーサーの違いと使い分け（テキスト抽出 vs Markdown変換）
@@ -76,20 +77,18 @@
 
 ---
 
-## 6. マルチエージェント（オーケストレーター + 専門エージェント）
+## 6. マルチエージェント（Supervisor パターン + Human in the Loop）✅
 
-- 現状の単一 ReAct エージェントを役割分担した複数エージェント構成に拡張
-- オーケストレーターが質問を分析し、最適な専門エージェントに振り分ける
+- 単一 ReAct エージェントを役割分担した複数エージェント構成に拡張
+- Supervisor が質問を分析し ResearchAgent（情報収集）→ AnswerAgent（回答生成）へ振り分ける
+- Human in the Loop（HITL）: ResearchAgent 完了後にユーザーが調査結果を確認して続行・追加指示・キャンセルを選択できる
 
-**構成案**
-```
-オーケストレーター（質問分析・担当振り分け）
-    ├─ PDFエージェント  （PDF検索に特化）
-    ├─ Webエージェント  （Web検索に特化）
-    └─ 計算エージェント （計算・コード実行に特化）
-```
+**実装済み**
+- `src/rag/multi_agent.py`: LangGraph Supervisor パターン + `interrupt()` / `MemorySaver`
+- `multi-agent` サブコマンド（`--debug` フラグでエージェント動作を表示）
+- HITL操作: `y`=回答生成へ進む / 任意テキスト=追加調査指示 / `n`=キャンセル
 
 **学べること**
-- LangGraph のマルチエージェントアーキテクチャ（supervisor パターン）
-- エージェント間の状態共有と通信設計
-- 複雑タスクの分解と並列実行
+- LangGraph のマルチエージェントアーキテクチャ（Supervisor パターン）
+- エージェント間の状態共有（TypedDict / StateGraph）と通信設計
+- Human in the Loop の実装（`interrupt()` / `MemorySaver` / `Command(resume=...)`）

@@ -56,6 +56,32 @@ def _load_eval_dataset(args: argparse.Namespace) -> tuple[list[str], list[str] |
     raise ValueError("--questions または --questions-file のいずれかを指定してください")
 
 
+def cmd_multi_agent(args: argparse.Namespace) -> None:
+    import uuid
+
+    from rag.ingest import load_vectorstore
+    from rag.multi_agent import run_multi_agent
+
+    vectorstore = load_vectorstore()
+    print("マルチエージェントチャット開始 (終了するには 'exit' を入力)\n")
+    print("構成: Supervisor → ResearchAgent（PDF・Web検索）→[HITL確認]→ AnswerAgent（回答生成）\n")
+    print("HITL: 調査完了後にプレビューを表示し、y=進む / r=追加調査 / n=キャンセル を選べます\n")
+
+    history: list[tuple[str, str]] = []
+    while True:
+        question = input("質問: ").strip()
+        if question.lower() in ("exit", "quit", "q"):
+            break
+        if not question:
+            continue
+        # 質問ごとに新しい thread_id を発行して MemorySaver のスレッドを分離する
+        thread_id = str(uuid.uuid4())
+        answer = run_multi_agent(vectorstore, question, history, debug=args.debug, thread_id=thread_id)
+        if answer:
+            history.append((question, answer))
+            print(f"\n回答: {answer}\n")
+
+
 def cmd_table(args: argparse.Namespace) -> None:
     from rag.table_search import load_csv_tables, get_schema_info, query_tables
 
@@ -129,6 +155,10 @@ def main() -> None:
     p_chat.add_argument("--agent", action="store_true", help="エージェントモードで実行（PDF検索・Web検索・計算・コード実行）")
     p_chat.add_argument("--debug", action="store_true", help="ツール呼び出しのデバッグ出力を表示（--agentと併用）")
     p_chat.set_defaults(func=cmd_chat)
+
+    p_multi = subparsers.add_parser("multi-agent", help="マルチエージェントチャットを開始する（Supervisor + ResearchAgent + AnswerAgent）")
+    p_multi.add_argument("--debug", action="store_true", help="各エージェントの動作をデバッグ出力する")
+    p_multi.set_defaults(func=cmd_multi_agent)
 
     p_table = subparsers.add_parser("table", help="CSVファイルを自然言語で検索する（DuckDB）")
     p_table.add_argument("--csv-dir", default="./data/csv", help="CSVディレクトリ")
