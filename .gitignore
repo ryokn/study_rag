@@ -21,3 +21,4 @@ mlruns.db
 mlflow.db
 .claude/
 logs/
+data/pdfs_buckup/

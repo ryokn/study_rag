@@ -30,42 +30,36 @@ uv sync
 cp .env.example .env
 ```
 
-`.env` を開いて必要な設定を行います。
+`.env` を開いて使用するプロバイダーに合わせて設定します。
 
 **Gemini API を使う場合：**
 ```env
-GOOGLE_API_KEY=your_gemini_api_key
 LLM_PROVIDER=gemini
+GOOGLE_API_KEY=your_gemini_api_key
 LLM_MODEL=gemini-2.5-flash
 ```
 
 **Azure OpenAI を使う場合：**
 ```env
 LLM_PROVIDER=azure_openai
-AZURE_OPENAI_API_KEY=your_azure_openai_api_key
+AZURE_OPENAI_API_KEY=your_key
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-02-01
-LLM_MODEL=gpt-4o                               # チャット用デプロイメント名
-AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small  # Embedding用デプロイメント名
+LLM_MODEL=gpt-4o
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
 ```
 
 **Ollama（ローカルLLM）を使う場合：**
 ```bash
-# Ollamaのインストール
 brew install ollama
-
-# モデルの取得（例: Gemma 4 2B）
-ollama pull gemma4:2b
-
-# サーバー起動（別ターミナルで）
-ollama serve
+ollama pull gemma4:e2b
+ollama pull nomic-embed-text
+ollama serve  # 別ターミナルで起動
 ```
 
 ```env
 LLM_PROVIDER=ollama
-LLM_MODEL=gemma4:2b
-# EmbeddingはGeminiを使用するため GOOGLE_API_KEY も設定すること
-GOOGLE_API_KEY=your_gemini_api_key
+LLM_MODEL=gemma4:e2b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
 **3. PDFファイルを配置**
@@ -75,155 +69,49 @@ mkdir -p data/pdfs
 cp your_document.pdf data/pdfs/
 ```
 
-## 使い方
+## コマンドリファレンス
 
-### PDFの取り込み
+<!-- AUTO-GENERATED -->
+| コマンド | 説明 |
+|---|---|
+| `uv run src/main.py ingest` | PDF を ChromaDB に取り込む |
+| `uv run src/main.py ingest --pdf-dir ./data/pdfs` | 取り込みディレクトリを指定 |
+| `uv run src/main.py chat` | RAGチャット（LangGraphフロー） |
+| `uv run src/main.py chat --agent` | エージェントモード（PDF・Web検索・計算・コード実行） |
+| `uv run src/main.py chat --agent --debug` | エージェントモード + ツール使用ログ表示 |
+| `uv run src/main.py multi-agent` | マルチエージェント（Supervisor + ResearchAgent + AnswerAgent + HITL） |
+| `uv run src/main.py multi-agent --debug` | マルチエージェント + エージェント動作ログ表示 |
+| `uv run src/main.py table` | CSV を自然言語で検索（DuckDB NL→SQL） |
+| `uv run src/main.py table --csv-dir ./data/csv` | 検索ディレクトリを指定 |
+| `uv run src/main.py eval --questions-file data/eval_questions.json` | RAGAS評価 + MLflow記録 |
+| `uv run src/main.py eval --questions "質問1,質問2"` | 簡易評価（JSONファイル不要） |
+| `uv run streamlit run src/app.py` | Web UI を起動（http://localhost:8501） |
+| `uv run mlflow ui --backend-store-uri sqlite:///mlruns.db` | MLflow UI を起動（http://localhost:5000） |
+<!-- END AUTO-GENERATED -->
 
-```bash
-uv run src/main.py ingest
-```
+### multi-agent の HITL 操作
 
-`data/pdfs/` 内のPDFをチャンク分割してChromaDBに保存します。
-
-### CLIチャット
-
-```bash
-# RAGモード（デフォルト）
-uv run src/main.py chat
-
-# エージェントモード（PDF検索・Web検索・計算・コード実行）
-uv run src/main.py chat --agent
-
-# エージェントモード + ツール使用のデバッグ出力
-uv run src/main.py chat --agent --debug
-```
-
-```
-エージェントチャット開始 (終了するには 'exit' を入力)
-
-質問: 今日の横浜の天気は？
-  [ツール呼び出し] web_search(query='横浜 今日 天気')
-  [ツール結果] 横浜市の今日の天気は晴れ、最高気温22℃...
-
-回答: 今日の横浜は晴れで最高気温22℃です。
-```
-
-### Web UI
-
-```bash
-uv run streamlit run src/app.py
-```
-
-ブラウザで `http://localhost:8501` を開きます。サイドバーからPDFをアップロードし、チャット欄で質問できます。
-
-### 品質評価（RAGAS + MLflow）
-
-**方法1: JSONファイルで評価（推奨）**
-
-```bash
-# テンプレートをコピーして評価データを作成
-cp data/eval_questions.example.json data/eval_questions.json
-# eval_questions.json を編集して質問と正解を記入
-
-uv run src/main.py eval \
-  --questions-file data/eval_questions.json \
-  --run-name "実験1_chunk500"
-```
-
-**方法2: コマンドラインで簡易実行**
-
-```bash
-uv run src/main.py eval \
-  --questions "質問1,質問2,質問3" \
-  --run-name "実験1_chunk500"
-```
-
-RAGASで `faithfulness` / `answer_relevancy` を計算し、MLflowに記録します。
-
-#### 評価データJSONのフォーマット
-
-```json
-[
-  {
-    "question": "返品ポリシーを教えてください",
-    "ground_truth": "購入から30日以内であれば返品可能です"
-  },
-  {
-    "question": "送料はいくらですか",
-    "ground_truth": "5000円以上の購入で送料無料です"
-  }
-]
-```
-
-- `ground_truth`（正解）は省略可能。省略時は `faithfulness` / `answer_relevancy` のみ評価
-- 5〜20件を目安に用意する
-
-#### パラメータを変えて実験比較する例
-
-```bash
-# 実験1: デフォルト設定
-uv run src/main.py eval --questions-file data/eval_questions.json --run-name "chunk500_topk5"
-
-# 実験2: チャンクサイズを小さく
-CHUNK_SIZE=200 uv run src/main.py eval --questions-file data/eval_questions.json --run-name "chunk200_topk5"
-
-# 実験3: 取得チャンク数を増やす
-TOP_K=10 uv run src/main.py eval --questions-file data/eval_questions.json --run-name "chunk500_topk10"
-```
-
-### MLflow UIで実験比較
-
-```bash
-uv run mlflow ui --backend-store-uri sqlite:///mlruns.db
-```
-
-`http://localhost:5000` でチャンクサイズやtop-kを変えた実験結果を比較できます。
-
-## 処理フロー
-
-### 取り込みフロー（`ingest`）
+`multi-agent` は ResearchAgent が調査を完了するとユーザーに確認を求めます。
 
 ```
-data/pdfs/*.pdf
-    ↓ PyPDFLoader でテキスト抽出
-    ↓ RecursiveCharacterTextSplitter でチャンク分割
-    ↓ Gemini Embedding でベクトル化
-    ↓
-ChromaDB（./chroma_db/）に永続保存
+=== 調査結果プレビュー ===
+（調査内容の抜粋）
+
+[HITL] y=回答生成へ進む / r=追加調査の指示を入力 / n=キャンセル:
 ```
 
-### 質問応答フロー（`chat` / Web UI）
+| 入力 | 動作 |
+|---|---|
+| `y` | AnswerAgent が最終回答を生成 |
+| 任意のテキスト | そのテキストを指示として追加調査を実行 |
+| `n` | キャンセル |
 
-**RAGモード**（デフォルト）: LangGraph が「検索 → 生成 → 品質判定 → 再試行」を制御します。
+### PDFローダーの切り替え
 
-```
-ユーザーの質問
-    ↓ ChromaDB 類似検索（top_k=5）
-    ↓ LLM で回答生成
-    ↓ 回答品質をLLMに判定させる
-    ├─ 十分 or 2回試行済み → 回答を返す
-    └─ 不十分 → 再検索（最大2回）
-```
+表・図を含むPDFは `pymupdf4llm` で精度が向上します。
 
-**エージェントモード**（`--agent`）: ReActエージェントが複数ツールを自律的に選択・実行します。
-
-```
-ユーザーの質問
-    ↓ ツール選択（search_pdf / web_search / calculator / python_repl）
-    ↓ ツール実行 → 結果を観察 → 必要なら再度ツール選択
-    └─ 回答を返す
-```
-
-### 評価フロー（`eval`）
-
-```
-eval_questions.json（質問・正解リスト）
-    ↓ 質問ごとに質問応答フローを実行
-    ↓ RAGAS で品質スコアを計算
-       ├─ faithfulness（ハルシネーション検出）
-       └─ answer_relevancy（回答の関連性）
-    ↓
-MLflow に記録 → http://localhost:5000 で実験比較
+```env
+PDF_LOADER=pymupdf4llm   # デフォルトは pypdf
 ```
 
 ## ディレクトリ構成
@@ -232,59 +120,38 @@ MLflow に記録 → http://localhost:5000 で実験比較
 study_rag/
 ├── pyproject.toml
 ├── .env.example
+├── docs/TASKS.md                          # タスク管理
 │
 ├── src/
-│   ├── main.py              # CLIエントリーポイント
-│   ├── app.py               # Streamlit Web UI
+│   ├── main.py                      # CLIエントリーポイント
+│   ├── app.py                       # Streamlit Web UI
 │   ├── rag/
-│   │   ├── ingest.py        # PDF読み込み・チャンク分割・DB保存
-│   │   ├── retriever.py     # ChromaDBからの検索
-│   │   ├── chain.py         # LangChain RAGチェーン
-│   │   ├── graph.py         # LangGraph フロー（検索→生成→品質判定→再試行）
-│   │   ├── agent.py         # ReActエージェント（PDF検索・Web検索・計算・コード実行）
-│   │   ├── table_search.py  # DuckDBによるCSV構造化データ検索（NL→SQL）
-│   │   ├── evaluator.py     # RAGAS品質評価
-│   │   └── llm.py           # LLMファクトリ（Gemini / Azure OpenAI / Ollama 切り替え）
+│   │   ├── ingest.py                # PDF読み込み・チャンク分割・DB保存
+│   │   ├── retriever.py             # ChromaDBからの検索
+│   │   ├── chain.py                 # LangChain RAGチェーン
+│   │   ├── graph.py                 # LangGraph フロー（RAGモード）
+│   │   ├── agent.py                 # ReActエージェント
+│   │   ├── multi_agent.py           # Supervisorパターン マルチエージェント（HITL対応）
+│   │   ├── table_search.py          # DuckDB CSV検索（NL→SQL）
+│   │   ├── evaluator.py             # RAGAS品質評価
+│   │   └── llm.py                   # LLMファクトリ（3プロバイダー対応）
 │   └── mlflow_tracking/
-│       └── experiments.py   # MLflow実験ログ
+│       └── experiments.py           # MLflow実験ログ
 │
 ├── docs/
-│   ├── SPEC.md
-│   └── ENHANCEMENTS.md
+│   ├── SPEC.md                      # 内部設計仕様
+│   └── flow.md                      # Mermaidフロー図
 │
 └── data/
-    ├── pdfs/                          # 入力PDF（gitignore対象）
-    └── eval_questions.example.json    # 評価データのテンプレート
+    ├── pdfs/                        # 入力PDF（gitignore対象）
+    ├── csv/                         # 入力CSV（tableコマンド用）
+    └── eval_questions.example.json  # 評価データのテンプレート
 ```
 
-## 調整可能なパラメータ
+## ドキュメント
 
-`.env` で以下を変更して MLflow で実験比較できます。
-
-<!-- AUTO-GENERATED: .env.example から生成 -->
-| 変数 | デフォルト | 説明 |
-|---|---|---|
-| `LLM_PROVIDER` | `gemini` | LLMプロバイダー（`gemini` / `azure_openai` / `ollama`） |
-| `LLM_MODEL` | `gemini-2.5-flash` | チャット用モデル名またはデプロイメント名 |
-| `CHUNK_SIZE` | `500` | チャンク分割サイズ（文字数） |
-| `CHUNK_OVERLAP` | `50` | チャンク間のオーバーラップ |
-| `TOP_K` | `5` | 検索で取得するチャンク数 |
-| `GOOGLE_API_KEY` | — | Gemini API キー（`gemini` / `ollama` 使用時） |
-| `EMBEDDING_MODEL` | `gemini-embedding-001` | Gemini Embedding モデル名 |
-| `AZURE_OPENAI_API_KEY` | — | Azure OpenAI API キー（`azure_openai` 使用時） |
-| `AZURE_OPENAI_ENDPOINT` | — | Azure OpenAI エンドポイント URL |
-| `AZURE_OPENAI_API_VERSION` | `2024-02-01` | Azure OpenAI API バージョン |
-| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | `text-embedding-3-small` | Embedding 用デプロイメント名 |
-<!-- END AUTO-GENERATED -->
-
-## 実装フェーズ
-
-- [x] フェーズ1: CLIでのRAG基本動作
-- [x] フェーズ2: LangGraphによるフロー制御（再試行ロジック）
-- [x] フェーズ3: MLflow + RAGASによる実験評価
-- [x] フェーズ4: Streamlit Web UI
-- [x] フェーズ5: Ollama対応（ローカルLLM切り替え）
-- [x] フェーズ6: 会話履歴対応（マルチターン）
-- [x] フェーズ7: Agentic AI（ReActエージェント + 複数ツール）
-- [x] フェーズ8: DuckDBによる構造化データ検索（NL→SQL）
-- [x] フェーズ9: Azure OpenAI対応（Gemini / Azure OpenAI / Ollama の切り替え）
+| ドキュメント | 内容 |
+|---|---|
+| [docs/SPEC.md](docs/SPEC.md) | 機能要件・処理フロー・環境変数リファレンス |
+| [docs/flow.md](docs/flow.md) | Mermaidフロー図（全モード） |
+| [docs/TASKS.md](docs/TASKS.md) | 今後の実装アイデア・タスク管理 |
