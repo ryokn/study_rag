@@ -2,7 +2,7 @@
 
 > ユーザー向けセットアップ・コマンド一覧は [README.md](../README.md) を参照。  
 > Mermaidフロー図は [docs/flow.md](flow.md) を参照。  
-> 今後のタスクは [TASKS.md](../TASKS.md) を参照。
+> 今後のタスクは [TASKS.md](TASKS.md) を参照。
 
 ---
 
@@ -228,7 +228,7 @@ data/eval_questions.json（質問・正解リスト）
 study_rag/
 ├── pyproject.toml
 ├── .env.example
-├── TASKS.md                          # タスク管理
+│   └── TASKS.md                             # タスク管理
 │
 ├── src/
 │   ├── main.py                      # CLIエントリーポイント

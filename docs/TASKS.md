@@ -1,7 +1,7 @@
 # TASKS — study-rag
 
 今後実装したい機能アイデアとタスクを管理するファイル。  
-実装済みフェーズの履歴は [docs/SPEC.md](docs/SPEC.md#機能要件) を参照。
+実装済みフェーズの履歴は [SPEC.md](SPEC.md#機能要件) を参照。
 
 ---
 
