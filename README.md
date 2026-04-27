@@ -120,7 +120,7 @@ PDF_LOADER=pymupdf4llm   # デフォルトは pypdf
 study_rag/
 ├── pyproject.toml
 ├── .env.example
-├── TODO.md                          # タスク管理
+├── TASKS.md                          # タスク管理
 │
 ├── src/
 │   ├── main.py                      # CLIエントリーポイント
@@ -154,7 +154,7 @@ study_rag/
 |---|---|
 | [docs/SPEC.md](docs/SPEC.md) | 機能要件・処理フロー・環境変数リファレンス |
 | [docs/flow.md](docs/flow.md) | Mermaidフロー図（全モード） |
-| [TODO.md](TODO.md) | 今後の実装アイデア・タスク管理 |
+| [TASKS.md](TASKS.md) | 今後の実装アイデア・タスク管理 |
 
 ## 実装フェーズ
 
