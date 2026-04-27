@@ -57,12 +57,15 @@ def _load_eval_dataset(args: argparse.Namespace) -> tuple[list[str], list[str] |
 
 
 def cmd_multi_agent(args: argparse.Namespace) -> None:
+    import uuid
+
     from rag.ingest import load_vectorstore
     from rag.multi_agent import run_multi_agent
 
     vectorstore = load_vectorstore()
     print("マルチエージェントチャット開始 (終了するには 'exit' を入力)\n")
-    print("構成: Supervisor → ResearchAgent（PDF・Web検索）→ AnswerAgent（回答生成）\n")
+    print("構成: Supervisor → ResearchAgent（PDF・Web検索）→[HITL確認]→ AnswerAgent（回答生成）\n")
+    print("HITL: 調査完了後にプレビューを表示し、y=進む / r=追加調査 / n=キャンセル を選べます\n")
 
     history: list[tuple[str, str]] = []
     while True:
@@ -71,9 +74,12 @@ def cmd_multi_agent(args: argparse.Namespace) -> None:
             break
         if not question:
             continue
-        answer = run_multi_agent(vectorstore, question, history, debug=args.debug)
-        history.append((question, answer))
-        print(f"\n回答: {answer}\n")
+        # 質問ごとに新しい thread_id を発行して MemorySaver のスレッドを分離する
+        thread_id = str(uuid.uuid4())
+        answer = run_multi_agent(vectorstore, question, history, debug=args.debug, thread_id=thread_id)
+        if answer:
+            history.append((question, answer))
+            print(f"\n回答: {answer}\n")
 
 
 def cmd_table(args: argparse.Namespace) -> None:

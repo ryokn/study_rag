@@ -36,8 +36,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import create_react_agent
+from langgraph.types import interrupt
 
 from rag.llm import build_base_llm
 from rag.retriever import retrieve
@@ -60,6 +62,7 @@ class MultiAgentState(TypedDict):
     answer: str                        # AnswerAgent が生成した最終回答
     history: list[tuple[str, str]]     # 会話履歴 [(質問, 回答), ...]
     next: str                          # 次に呼ぶノード: research / answer / FINISH
+    user_feedback: str                 # HITL: ユーザーの確認入力 (y/r/n)
 
 
 def _build_research_tools(vectorstore: Chroma) -> list:
@@ -145,6 +148,7 @@ def build_multi_agent_graph(vectorstore: Chroma, debug: bool = False) -> StateGr
 
         research_result が空の場合は必ず research を選択することで、
         初回は必ず情報収集を行うように制御する。
+        HITL: user_feedback が "n" の場合はキャンセル、"r" の場合は追加調査を指示する。
         """
         _debug_print("Supervisor 起動", f"question={state['question']}", debug)
 
@@ -152,6 +156,16 @@ def build_multi_agent_graph(vectorstore: Chroma, debug: bool = False) -> StateGr
         if not state["research_result"]:
             _debug_print("Supervisor 判断", "調査結果なし → research へ強制ルーティング", debug)
             return {**state, "next": RESEARCH}
+
+        # HITL: ユーザーのフィードバックに従ってルーティング
+        feedback = state.get("user_feedback", "y")
+        if feedback == "n":
+            _debug_print("Supervisor 判断", "ユーザーがキャンセル → FINISH", debug)
+            return {**state, "next": FINISH}
+        if feedback not in ("y", ""):
+            # "r" または自由テキスト → 追加調査指示として question を更新
+            _debug_print("Supervisor 判断", f"追加調査指示: {feedback!r} → research", debug)
+            return {**state, "question": feedback, "user_feedback": "", "next": RESEARCH}
 
         raw = supervisor_chain.invoke(
             {
@@ -206,7 +220,21 @@ def build_multi_agent_graph(vectorstore: Chroma, debug: bool = False) -> StateGr
             )
 
         _debug_print("ResearchAgent 完了", research_result, debug)
-        return {**state, "research_result": research_result}
+
+        # HITL: 調査結果をユーザーに提示して確認を求める
+        # interrupt() はグラフの実行を一時停止し、MemorySaver に状態を保存する。
+        # resume 時は interrupt() の戻り値としてユーザー入力が返る。
+        preview = research_result[:500] + ("..." if len(research_result) > 500 else "")
+        user_input: str = interrupt(
+            {
+                "research_result": preview,
+                "prompt": "y=回答生成へ進む / r=追加調査の指示を入力 / n=キャンセル",
+            }
+        )
+
+        # ユーザー入力を正規化
+        user_input = user_input.strip().lower()
+        return {**state, "research_result": research_result, "user_feedback": user_input}
 
     def answer_node(state: MultiAgentState) -> MultiAgentState:
         """AnswerAgent: 調査結果をもとに最終回答を生成する。
@@ -269,7 +297,9 @@ def build_multi_agent_graph(vectorstore: Chroma, debug: bool = False) -> StateGr
     # AnswerAgent は完了後そのまま終了
     graph.add_edge("answer", END)
 
-    return graph.compile()
+    # MemorySaver: interrupt() で一時停止した状態をメモリ上に保持するチェックポインター。
+    # thread_id ごとに状態が分離されるため、複数会話の並行実行にも対応できる。
+    return graph.compile(checkpointer=MemorySaver())
 
 
 def run_multi_agent(
@@ -277,25 +307,50 @@ def run_multi_agent(
     question: str,
     history: list[tuple[str, str]] | None = None,
     debug: bool = False,
+    thread_id: str = "default",
 ) -> str:
     """マルチエージェントを実行して最終回答を返す。
+
+    HITL 対応: ResearchAgent 完了後に interrupt() で一時停止し、
+    ユーザー入力を受け取って resume する。
 
     Args:
         vectorstore: PDF検索に使用するChromaDBインスタンス
         question: ユーザーの質問文
         history: 過去の会話履歴 [(質問, 回答), ...]
+        debug: デバッグ出力の有無
+        thread_id: MemorySaver のスレッドID（会話ごとに一意にする）
 
     Returns:
-        AnswerAgent が生成した最終回答文字列
+        AnswerAgent が生成した最終回答文字列（キャンセル時は空文字列）
     """
     app = build_multi_agent_graph(vectorstore, debug=debug)
-    final_state = app.invoke(
-        {
-            "question": question,
-            "research_result": "",
-            "answer": "",
-            "history": history or [],
-            "next": "",
-        }
-    )
-    return final_state["answer"]
+    config = {"configurable": {"thread_id": thread_id}}
+    initial_state = {
+        "question": question,
+        "research_result": "",
+        "answer": "",
+        "history": history or [],
+        "next": "",
+        "user_feedback": "",
+    }
+
+    result = app.invoke(initial_state, config=config)
+
+    # interrupt() で停止した場合は __interrupt__ キーが含まれる
+    while "__interrupt__" in result:
+        interrupt_data = result["__interrupt__"][0].value
+        print(f"\n=== 調査結果プレビュー ===\n{interrupt_data['research_result']}\n")
+        print(f"[HITL] {interrupt_data['prompt']}: ", end="", flush=True)
+        user_input = input().strip()
+
+        # キャンセルの場合は即座に終了
+        if user_input.lower() == "n":
+            print("キャンセルしました。")
+            return ""
+
+        # Command(resume=...) でグラフを再開する
+        from langgraph.types import Command
+        result = app.invoke(Command(resume=user_input), config=config)
+
+    return result.get("answer", "")
