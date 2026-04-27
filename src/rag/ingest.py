@@ -14,6 +14,8 @@ PDFローダーの選択:
     技術文書・仕様書・研究論文など表や図を含むPDFに適している。
 """
 
+import datetime
+import json
 import os
 import time
 from pathlib import Path
@@ -39,6 +41,9 @@ EMBED_BATCH_INTERVAL = int(os.getenv("EMBED_BATCH_INTERVAL", "65"))
 
 # PDFローダーの選択: pypdf（デフォルト）または pymupdf4llm
 PDF_LOADER = os.getenv("PDF_LOADER", "pypdf")
+
+# チャンクログの出力先ディレクトリ（空文字の場合は出力しない）
+CHUNK_LOG_DIR = os.getenv("CHUNK_LOG_DIR", "./logs")
 
 
 def _load_pdf_pypdf(pdf_path: Path) -> list[Document]:
@@ -143,6 +148,50 @@ def build_vectorstore(chunks: list[Document]) -> Chroma:
     return vectorstore
 
 
+def save_chunk_log(chunks: list[Document]) -> None:
+    """チャンク分割結果をJSONログファイルに出力する。
+
+    CHUNK_LOG_DIR が空文字の場合は何もしない。
+    ファイル名にタイムスタンプを付与することで、
+    ローダーやパラメータを変えた実験結果を比較しやすくする。
+
+    出力形式:
+      logs/chunks_YYYYMMDD_HHMMSS.json
+        [
+          {
+            "index": 1,
+            "source": "data/pdfs/xxx.pdf",
+            "page": 1,
+            "content": "チャンクのテキスト..."
+          },
+          ...
+        ]
+    """
+    if not CHUNK_LOG_DIR:
+        return
+
+    log_dir = Path(CHUNK_LOG_DIR)
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"chunks_{PDF_LOADER}_{timestamp}.json"
+
+    records = [
+        {
+            "index": i + 1,
+            "source": chunk.metadata.get("source", ""),
+            "page": chunk.metadata.get("page", chunk.metadata.get("page_number", "")),
+            "content": chunk.page_content,
+        }
+        for i, chunk in enumerate(chunks)
+    ]
+
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump(records, f, ensure_ascii=False, indent=2)
+
+    print(f"  チャンクログを出力しました: {log_path} ({len(chunks)} チャンク)")
+
+
 def ingest(pdf_dir: str = "./data/pdfs") -> Chroma:
     """PDFの取り込みからChromaDB保存までを一括実行する"""
     print(f"PDFを読み込み中: {pdf_dir}")
@@ -153,6 +202,8 @@ def ingest(pdf_dir: str = "./data/pdfs") -> Chroma:
 
     chunks = split_documents(docs)
     print(f"  {len(chunks)} チャンクに分割完了")
+
+    save_chunk_log(chunks)
 
     print("ChromaDBに保存中...")
     vectorstore = build_vectorstore(chunks)
