@@ -155,17 +155,3 @@ study_rag/
 | [docs/SPEC.md](docs/SPEC.md) | 機能要件・処理フロー・環境変数リファレンス |
 | [docs/flow.md](docs/flow.md) | Mermaidフロー図（全モード） |
 | [docs/TASKS.md](docs/TASKS.md) | 今後の実装アイデア・タスク管理 |
-
-## 実装フェーズ
-
-- [x] フェーズ1: CLIでのRAG基本動作
-- [x] フェーズ2: LangGraphによるフロー制御（再試行ロジック）
-- [x] フェーズ3: MLflow + RAGASによる実験評価
-- [x] フェーズ4: Streamlit Web UI
-- [x] フェーズ5: Ollama対応（ローカルLLM切り替え）
-- [x] フェーズ6: 会話履歴対応（マルチターン）
-- [x] フェーズ7: Agentic AI（ReActエージェント + 複数ツール）
-- [x] フェーズ8: DuckDBによる構造化データ検索（NL→SQL）
-- [x] フェーズ9: Azure OpenAI対応（Gemini / Azure OpenAI / Ollama の切り替え）
-- [x] フェーズ10: PyMuPDF4LLMによる高精度PDF取り込み（表・図対応）
-- [x] フェーズ11: マルチエージェント（Supervisor パターン + HITL）
