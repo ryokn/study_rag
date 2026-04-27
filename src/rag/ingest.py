@@ -1,4 +1,18 @@
-"""PDFの読み込み・チャンク分割・ChromaDBへの保存"""
+"""PDFの読み込み・チャンク分割・ChromaDBへの保存
+
+PDFローダーの選択:
+  環境変数 PDF_LOADER で切り替え可能。
+
+  pypdf（デフォルト）:
+    LangChain 標準の PyPDFLoader を使用。
+    シンプルなテキスト抽出に適しているが、
+    表がスペース区切りの崩れたテキストになる問題がある。
+
+  pymupdf4llm:
+    MuPDF ベースの高精度パーサー。PDF を Markdown 形式に変換する。
+    表を |col|col| 形式で保持し、段組レイアウトも正しく処理できる。
+    技術文書・仕様書・研究論文など表や図を含むPDFに適している。
+"""
 
 import os
 import time
@@ -23,18 +37,70 @@ COLLECTION_NAME = "study_rag"
 EMBED_BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "80"))
 EMBED_BATCH_INTERVAL = int(os.getenv("EMBED_BATCH_INTERVAL", "65"))
 
+# PDFローダーの選択: pypdf（デフォルト）または pymupdf4llm
+PDF_LOADER = os.getenv("PDF_LOADER", "pypdf")
+
+
+def _load_pdf_pypdf(pdf_path: Path) -> list[Document]:
+    """PyPDFLoader でPDFをページ単位のDocumentリストとして読み込む。
+
+    シンプルなテキスト抽出。表構造は保持されない。
+    """
+    loader = PyPDFLoader(str(pdf_path))
+    return loader.load()
+
+
+def _load_pdf_pymupdf4llm(pdf_path: Path) -> list[Document]:
+    """pymupdf4llm でPDFをMarkdown形式のDocumentリストとして読み込む。
+
+    page_chunks=True にすることでページごとの Document が得られる。
+    各ページの dict は以下の構造:
+      {
+        "text": "# 見出し\n| 列1 | 列2 |\n...",  # Markdown テキスト
+        "metadata": {"file_path": ..., "page": ..., ...}
+      }
+
+    表は |col|col| 形式で保持されるため、テキスト抽出より高精度。
+    """
+    import pymupdf4llm
+
+    # page_chunks=True でページ単位の dict リストを返す
+    pages = pymupdf4llm.to_markdown(str(pdf_path), page_chunks=True)
+    return [
+        Document(
+            page_content=page["text"],
+            metadata={**page["metadata"], "source": str(pdf_path)},
+        )
+        for page in pages
+        # 空ページ（画像のみ等）はスキップ
+        if page["text"].strip()
+    ]
+
 
 def load_pdfs(pdf_dir: str) -> list[Document]:
-    """指定ディレクトリ内のPDFをすべて読み込む"""
+    """指定ディレクトリ内のPDFをすべて読み込む。
+
+    PDF_LOADER 環境変数に従ってローダーを切り替える。
+    """
     docs: list[Document] = []
+    loader_name = PDF_LOADER
+
     for pdf_path in Path(pdf_dir).glob("*.pdf"):
-        loader = PyPDFLoader(str(pdf_path))
-        docs.extend(loader.load())
+        print(f"  ローダー: {loader_name} / ファイル: {pdf_path.name}")
+        if loader_name == "pymupdf4llm":
+            docs.extend(_load_pdf_pymupdf4llm(pdf_path))
+        else:
+            docs.extend(_load_pdf_pypdf(pdf_path))
+
     return docs
 
 
 def split_documents(docs: list[Document]) -> list[Document]:
-    """ドキュメントをチャンクに分割する"""
+    """ドキュメントをチャンクに分割する。
+
+    pymupdf4llm が返す Markdown テキストは表・見出しの区切りが明確なため、
+    RecursiveCharacterTextSplitter の区切り文字（改行・空行）が有効に機能する。
+    """
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,

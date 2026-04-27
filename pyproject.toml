@@ -20,4 +20,5 @@ dependencies = [
     "ragas>=0.1",
     "duckdb>=1.0",
     "langchain-openai>=0.1",
+    "pymupdf4llm>=0.0.17",
 ]
