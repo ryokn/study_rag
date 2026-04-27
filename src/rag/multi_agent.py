@@ -111,7 +111,19 @@ def _build_supervisor_chain():
     return prompt | build_base_llm() | StrOutputParser()
 
 
-def build_multi_agent_graph(vectorstore: Chroma) -> StateGraph:
+def _debug_print(label: str, content: str, debug: bool) -> None:
+    """デバッグ出力を整形して表示するユーティリティ。
+
+    content が長い場合は200文字でトリミングして表示する。
+    debug=False の場合は何もしない。
+    """
+    if not debug:
+        return
+    preview = content[:200].replace("\n", " ") if content else "（なし）"
+    print(f"\n  [DEBUG] {label}: {preview}")
+
+
+def build_multi_agent_graph(vectorstore: Chroma, debug: bool = False) -> StateGraph:
     """Supervisor パターンのマルチエージェントグラフを構築して返す。
 
     グラフ構造:
@@ -134,8 +146,11 @@ def build_multi_agent_graph(vectorstore: Chroma) -> StateGraph:
         research_result が空の場合は必ず research を選択することで、
         初回は必ず情報収集を行うように制御する。
         """
+        _debug_print("Supervisor 起動", f"question={state['question']}", debug)
+
         # 調査がまだの場合は強制的に research へ
         if not state["research_result"]:
+            _debug_print("Supervisor 判断", "調査結果なし → research へ強制ルーティング", debug)
             return {**state, "next": RESEARCH}
 
         raw = supervisor_chain.invoke(
@@ -154,6 +169,7 @@ def build_multi_agent_graph(vectorstore: Chroma) -> StateGraph:
         else:
             next_node = ANSWER
 
+        _debug_print("Supervisor 判断", f"LLM出力={raw!r} → next={next_node}", debug)
         return {**state, "next": next_node}
 
     def research_node(state: MultiAgentState) -> MultiAgentState:
@@ -162,20 +178,34 @@ def build_multi_agent_graph(vectorstore: Chroma) -> StateGraph:
         会話履歴を HumanMessage / AIMessage に変換して渡すことで
         マルチターン対話にも対応する。
         """
+        _debug_print("ResearchAgent 起動", "PDF・Web検索を開始", debug)
+
         messages: list = []
         for q, a in state["history"]:
             messages.extend([HumanMessage(content=q), AIMessage(content=a)])
         messages.append(HumanMessage(content=state["question"]))
 
         result = research_agent.invoke({"messages": messages})
-        # ReAct エージェントの最終メッセージが調査結果
-        research_result = result["messages"][-1].content
 
+        # ReAct エージェントのツール呼び出し履歴をデバッグ出力
+        if debug:
+            from langchain_core.messages import ToolMessage
+            for msg in result["messages"]:
+                if isinstance(msg, AIMessage) and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        args_str = ", ".join(f"{k}={v!r}" for k, v in tc["args"].items())
+                        print(f"\n  [DEBUG] ResearchAgent ツール呼び出し: {tc['name']}({args_str})")
+                elif isinstance(msg, ToolMessage):
+                    preview = str(msg.content)[:150].replace("\n", " ")
+                    print(f"\n  [DEBUG] ResearchAgent ツール結果: {preview}...")
+
+        research_result = result["messages"][-1].content
         if isinstance(research_result, list):
             research_result = "".join(
                 block.get("text", "") for block in research_result if isinstance(block, dict)
             )
 
+        _debug_print("ResearchAgent 完了", research_result, debug)
         return {**state, "research_result": research_result}
 
     def answer_node(state: MultiAgentState) -> MultiAgentState:
@@ -184,6 +214,8 @@ def build_multi_agent_graph(vectorstore: Chroma) -> StateGraph:
         AnswerAgent はツールを持たず、収集済みの research_result だけを使って
         簡潔で正確な回答を生成することに特化している。
         """
+        _debug_print("AnswerAgent 起動", "調査結果をもとに回答を生成", debug)
+
         prompt = ChatPromptTemplate.from_template(
             """あなたは収集された情報をもとに、簡潔で正確な回答を生成する専門家です。
 
@@ -204,6 +236,7 @@ def build_multi_agent_graph(vectorstore: Chroma) -> StateGraph:
                 "question": state["question"],
             }
         )
+        _debug_print("AnswerAgent 完了", answer, debug)
         return {**state, "answer": answer, "next": FINISH}
 
     def route(state: MultiAgentState) -> str:
@@ -243,6 +276,7 @@ def run_multi_agent(
     vectorstore: Chroma,
     question: str,
     history: list[tuple[str, str]] | None = None,
+    debug: bool = False,
 ) -> str:
     """マルチエージェントを実行して最終回答を返す。
 
@@ -254,7 +288,7 @@ def run_multi_agent(
     Returns:
         AnswerAgent が生成した最終回答文字列
     """
-    app = build_multi_agent_graph(vectorstore)
+    app = build_multi_agent_graph(vectorstore, debug=debug)
     final_state = app.invoke(
         {
             "question": question,

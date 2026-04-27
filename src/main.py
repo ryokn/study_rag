@@ -71,7 +71,7 @@ def cmd_multi_agent(args: argparse.Namespace) -> None:
             break
         if not question:
             continue
-        answer = run_multi_agent(vectorstore, question, history)
+        answer = run_multi_agent(vectorstore, question, history, debug=args.debug)
         history.append((question, answer))
         print(f"\n回答: {answer}\n")
 
@@ -151,6 +151,7 @@ def main() -> None:
     p_chat.set_defaults(func=cmd_chat)
 
     p_multi = subparsers.add_parser("multi-agent", help="マルチエージェントチャットを開始する（Supervisor + ResearchAgent + AnswerAgent）")
+    p_multi.add_argument("--debug", action="store_true", help="各エージェントの動作をデバッグ出力する")
     p_multi.set_defaults(func=cmd_multi_agent)
 
     p_table = subparsers.add_parser("table", help="CSVファイルを自然言語で検索する（DuckDB）")
