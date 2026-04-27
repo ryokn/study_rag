@@ -1,4 +1,6 @@
-# システムフロー図
+# フロー図 — study-rag
+
+> 内部設計仕様は [docs/SPEC.md](SPEC.md) を参照。
 
 ## 全体アーキテクチャ
 
@@ -14,6 +16,7 @@ graph TB
         INGEST["ingest<br/>PDF取り込み"]
         CHAT["chat<br/>RAGチャット"]
         AGENT["chat --agent<br/>エージェント"]
+        MULTI["multi-agent<br/>マルチエージェント+HITL"]
         TABLE["table<br/>CSV検索"]
         EVAL["eval<br/>品質評価"]
     end
@@ -33,6 +36,7 @@ graph TB
     CLI --> INGEST
     CLI --> CHAT
     CLI --> AGENT
+    CLI --> MULTI
     CLI --> TABLE
     CLI --> EVAL
     WEB --> CHAT
@@ -42,6 +46,7 @@ graph TB
     INGEST --> CHROMA
     CHAT --> CHROMA
     AGENT --> CHROMA
+    MULTI --> CHROMA
     TABLE --> DUCKDB
     EVAL --> CHROMA
     EVAL --> MLFLOW
@@ -49,6 +54,8 @@ graph TB
     CHAT --> LLM
     AGENT --> LLM
     AGENT --> DDG
+    MULTI --> LLM
+    MULTI --> DDG
     TABLE --> LLM
     EVAL --> LLM
 ```
@@ -60,12 +67,19 @@ graph TB
 ```mermaid
 flowchart LR
     PDF["data/pdfs/*.pdf"]
-    LOAD["PyPDFLoader<br/>ページ単位で読み込み"]
+    SWITCH{"PDF_LOADER"}
+    PYPDF["PyPDFLoader<br/>テキスト抽出"]
+    MUDF["pymupdf4llm<br/>Markdown変換（表・図対応）"]
     SPLIT["RecursiveCharacterTextSplitter<br/>CHUNK_SIZE=500 / OVERLAP=50"]
-    EMBED["Embeddings<br/>Gemini / Azure OpenAI（build_embeddings()）"]
+    EMBED["build_embeddings()<br/>Gemini / Azure OpenAI / Ollama"]
     CHROMA[("ChromaDB<br/>chroma_db/")]
+    LOG["chunks_*.json<br/>logs/"]
 
-    PDF --> LOAD --> SPLIT --> EMBED --> CHROMA
+    PDF --> SWITCH
+    SWITCH -- "pypdf（デフォルト）" --> PYPDF --> SPLIT
+    SWITCH -- "pymupdf4llm" --> MUDF --> SPLIT
+    SPLIT --> EMBED --> CHROMA
+    SPLIT --> LOG
 ```
 
 ---
@@ -141,7 +155,34 @@ flowchart LR
 
 ---
 
-## 5. 評価フロー（eval）
+## 5. マルチエージェントフロー（multi-agent）
+
+```mermaid
+flowchart TD
+    Q["ユーザーの質問"]
+    SUP["Supervisor ノード<br/>rag/multi_agent.py"]
+    CHECK_RES{"research_result\nあり？"}
+
+    RES["ResearchAgent<br/>ReAct: PDF検索・Web検索"]
+    HITL["[HITL] interrupt()<br/>調査結果をユーザーに提示"]
+    USER_IN{"ユーザー入力"}
+
+    ANS["AnswerAgent<br/>調査結果 → 最終回答生成"]
+    END_NODE["終了"]
+
+    Q --> SUP --> CHECK_RES
+    CHECK_RES -- "なし（初回）" --> RES
+    CHECK_RES -- "あり" --> ANS
+    RES --> HITL --> USER_IN
+    USER_IN -- "y（進む）" --> SUP
+    USER_IN -- "追加指示テキスト" --> SUP
+    USER_IN -- "n（キャンセル）" --> END_NODE
+    SUP --> ANS --> END_NODE
+```
+
+---
+
+## 6. 評価フロー（eval）
 
 ```mermaid
 flowchart TD

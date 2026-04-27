@@ -1,10 +1,8 @@
-# SPEC.md — study-rag
+# SPEC.md — study-rag 内部設計仕様
 
-## 概要
-
-ローカルPDFファイルを対象としたRAG（Retrieval-Augmented Generation）サンプル実装。  
-LangChain / LangGraph / Gemini API または Ollama を組み合わせた検索・回答生成パイプラインを学習目的で構築する。  
-MLflowで実験を継続的に評価・比較できる仕組みを持つ。
+> ユーザー向けセットアップ・コマンド一覧は [README.md](../README.md) を参照。  
+> Mermaidフロー図は [docs/flow.md](flow.md) を参照。  
+> 今後のタスクは [TODO.md](../TODO.md) を参照。
 
 ---
 
@@ -230,33 +228,34 @@ data/eval_questions.json（質問・正解リスト）
 study_rag/
 ├── pyproject.toml
 ├── .env.example
+├── TODO.md                          # タスク管理
 │
 ├── src/
-│   ├── main.py              # CLIエントリーポイント
-│   ├── app.py               # Streamlitエントリーポイント
-│   └── rag/
-│       ├── __init__.py
-│       ├── ingest.py        # PDF読み込み・チャンク分割・DB保存
-│       ├── retriever.py     # ChromaDBからの検索
-│       ├── chain.py         # LangChainのRAGチェーン
-│       ├── graph.py         # LangGraphのフロー定義（RAGモード）
-│       ├── agent.py         # ReActエージェント（エージェントモード）
-│       ├── multi_agent.py   # Supervisorパターンのマルチエージェント（HITL対応）
-│       ├── table_search.py  # DuckDBによるCSV構造化データ検索
-│       ├── evaluator.py     # 回答品質評価
-│       └── llm.py           # LLMファクトリ（Gemini / Azure OpenAI / Ollama 切り替え）
+│   ├── main.py                      # CLIエントリーポイント
+│   ├── app.py                       # Streamlit Web UI
+│   ├── rag/
+│   │   ├── ingest.py                # PDF読み込み・チャンク分割・DB保存
+│   │   ├── retriever.py             # ChromaDBからの検索
+│   │   ├── chain.py                 # LangChain RAGチェーン
+│   │   ├── graph.py                 # LangGraph フロー（RAGモード）
+│   │   ├── agent.py                 # ReActエージェント
+│   │   ├── multi_agent.py           # Supervisorパターン マルチエージェント（HITL対応）
+│   │   ├── table_search.py          # DuckDB CSV検索（NL→SQL）
+│   │   ├── evaluator.py             # RAGAS品質評価
+│   │   └── llm.py                   # LLMファクトリ（3プロバイダー対応）
 │   └── mlflow_tracking/
-│       └── experiments.py   # MLflow実験ログユーティリティ
+│       └── experiments.py           # MLflow実験ログ
 │
 ├── docs/
-│   ├── SPEC.md
-│   └── ENHANCEMENTS.md
+│   ├── SPEC.md                      # 内部設計仕様（このファイル）
+│   └── flow.md                      # Mermaidフロー図
 │
 ├── data/
-│   ├── pdfs/                         # 入力PDFの置き場所（gitignore対象）
-│   └── eval_questions.example.json   # 評価データのサンプルテンプレート
+│   ├── pdfs/                        # 入力PDF（gitignore対象）
+│   ├── csv/                         # 入力CSV（tableコマンド用）
+│   └── eval_questions.example.json  # 評価データのテンプレート
 │
-└── chroma_db/               # ChromaDB永続化ディレクトリ（gitignore対象）
+└── chroma_db/                       # ChromaDB永続化ディレクトリ（gitignore対象）
 ```
 
 ---
@@ -351,17 +350,3 @@ study_rag/
 - `data/pdfs/` と `chroma_db/` は `.gitignore` 対象
 - 各フェーズは独立して動作確認できること
 
----
-
-## 実装済み機能
-
-1. `src/rag/ingest.py` — PDF読み込み・ChromaDB保存（PyPDF / PyMuPDF4LLM 切り替え対応）
-2. `src/rag/retriever.py` + `src/rag/chain.py` — CLIでの検索・回答
-3. `src/rag/graph.py` — LangGraphフロー（検索→生成→判定→再試行）
-4. `src/mlflow_tracking/` — 実験ログ・RAGAS評価
-5. `src/app.py` — Streamlit Web UI
-6. `src/rag/llm.py` — Gemini / Azure OpenAI / Ollama 3プロバイダー対応
-7. 会話履歴（マルチターン）対応
-8. `src/rag/agent.py` — ReActエージェント（`--agent` フラグ）
-9. `src/rag/table_search.py` — DuckDB による CSV 構造化データ検索
-10. `src/rag/multi_agent.py` — Supervisor パターンのマルチエージェント（HITL対応）
